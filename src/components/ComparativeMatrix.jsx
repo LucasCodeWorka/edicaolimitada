@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, X, Expand, Minimize2, Calculator, Download } from 'lucide-react';
-import { kpiData, planoEdicaoLimitadaData } from '../../data';
+import { planoEdicaoLimitadaData } from '../../data';
 import { exportComparativoLojas, exportComparativoDetalhado } from '../utils/exportExcel';
 
 // Lojas excluídas para famílias de tamanhos maiores (PLUS)
@@ -31,28 +31,6 @@ const getFamiliaDisplayName = (familia) => {
     return 'BASICOS';
   }
   return familia;
-};
-
-const distribuirPorReferencia = (total, referencia = []) => {
-  const totalInteiro = Math.round(Number(total) || 0);
-  const totalReferencia = soma(referencia);
-
-  if (totalInteiro <= 0 || totalReferencia <= 0) {
-    return referencia.map(() => 0);
-  }
-
-  const exatos = referencia.map(valor => (totalInteiro * (Number(valor) || 0)) / totalReferencia);
-  const valores = exatos.map(Math.floor);
-  let falta = totalInteiro - soma(valores);
-  const restos = exatos
-    .map((valor, idx) => ({ idx, resto: valor - Math.floor(valor) }))
-    .sort((a, b) => b.resto - a.resto);
-
-  for (let i = 0; i < falta && i < restos.length; i++) {
-    valores[restos[i].idx] += 1;
-  }
-
-  return valores;
 };
 
 const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
@@ -117,10 +95,6 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
       }, {});
   }, []);
 
-  const fatorCrescimentoPlano = kpiData.venda2025 > 0
-    ? kpiData.plano2026 / kpiData.venda2025
-    : 1;
-
   // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
   const familiasComPlano = useMemo(
     () => familiasFiltradas.filter(familia => soma(familia.plano2026) > 0),
@@ -129,16 +103,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
 
   const familias = familiasComPlano.map(familia => ({
     ...familia,
-    vendas2025: distribuirPorReferencia(
-      (planoSkuPorFamilia[familia.nome] || soma(familia.plano2026)) / fatorCrescimentoPlano,
-      familia.plano2026
-    ),
     plano2026Original: familia.plano2026,
     plano2026: familia.plano2026  // Sem ajuste
   }));
 
-  // Esta matriz compara o plano contra a base de calculo usada para chegar nele.
-  // Familias com venda historica, mas sem plano 2026, ficam fora do percentual.
+  // Esta matriz compara o plano contra a base propria de cada familia/loja.
+  // Familias com venda historica, mas sem plano 2026, ficam fora desta comparacao.
   const baseSemPlano = null;
 
   // Buscar SKUs de uma família agrupados por ref > cor > tam
@@ -230,7 +200,6 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
       percentual,
       diferenca,
       foiAjustado,
-      fatorCrescimentoPlano,
       skusDetalhados,
       totalPlanoDetalhado
     });
@@ -576,7 +545,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-slate-100 border border-slate-300 rounded-sm"></span> Referência</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-violet-100 border border-violet-300 rounded-sm"></span> Cor</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-teal-100 border border-teal-300 rounded-sm"></span> SKU</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm"></span> Base = plano dividido pelo fator global</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm"></span> Base propria da familia/loja</span>
       </div>
 
       {/* Modal de Memória de Cálculo */}
@@ -651,13 +620,11 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
                 <p className="text-blue-900 text-xs font-semibold">Como esta base foi montada</p>
                 <p className="text-blue-800 text-[11px] mt-1">
-                  Esta matriz não usa mais a venda histórica bruta da família como comparação, porque isso misturava famílias sem plano
-                  e classificações diferentes. A base exibida é a base comparável do plano: <strong>Plano da célula dividido pelo fator global</strong>.
+                  Esta matriz usa a base propria de cada familia em cada loja. Assim, uma regra manual em uma familia,
+                  como a reducao de PORTELLE para 400 pecas, nao altera o percentual das outras familias.
                 </p>
                 <p className="text-blue-700 text-[11px] mt-1">
-                  Fator global = KPI Plano {fmt(kpiData.plano2026)} / KPI Venda {fmt(kpiData.venda2025)}
-                  {' '}= {modalData.fatorCrescimentoPlano.toFixed(4)}. Portanto, esta célula usa base {fmt(modalData.val2025)}
-                  {' '}para chegar ao plano {fmt(modalData.val2026)}.
+                  Portanto, esta célula compara base {fmt(modalData.val2025)} contra plano {fmt(modalData.val2026)}.
                 </p>
               </div>
 
