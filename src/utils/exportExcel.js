@@ -117,6 +117,17 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
   // Lojas excluídas para famílias PLUS
   const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'ECOMMERCE'];
+  const LOJAS_PEQUENAS_PORTELLE = [
+    'DOM LUIS',
+    'ECOMMERCE',
+    'INTIMATES',
+    'MORUMBI',
+    'NORTH',
+    'NORTH JOQUEI',
+    'PARANGABA',
+    'RIOMAR KENNEDY',
+    'TABOSA'
+  ];
 
   const ehFamiliaTamanhoMaior = (familia) => {
     const familiaUpper = String(familia).toUpperCase().trim();
@@ -126,6 +137,16 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
   const lojaExcluidaTamanhoMaior = (loja) => {
     const lojaUpper = String(loja).toUpperCase().trim();
     return LOJAS_EXCLUIDAS_TAM_MAIOR.some(excl => lojaUpper.includes(excl.toUpperCase()));
+  };
+
+  const ehPortelleNaoPreto = (sku) => {
+    return String(sku.familia || '').toUpperCase().trim() === 'PORTELLE'
+      && String(sku.cor || '').toUpperCase().trim() !== 'PRETO';
+  };
+
+  const lojaPequenaPortelle = (loja) => {
+    const lojaUpper = String(loja).toUpperCase().trim();
+    return LOJAS_PEQUENAS_PORTELLE.some(excl => lojaUpper.includes(excl.toUpperCase()));
   };
 
   // Participação GERAL de cada loja baseada no comparativo atual.
@@ -169,12 +190,16 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
     // Para PLUS, recalcular participação excluindo lojas proibidas
     let participacaoAjustada = { ...participacaoPorLoja };
-    if (isTamMaior) {
+    if (isTamMaior || ehPortelleNaoPreto(sku)) {
       // Zerar lojas excluídas e recalcular proporção
       const vendasAjustadas = {};
       let totalAjustado = 0;
       Object.keys(vendasPorLoja).forEach(loja => {
-        if (lojaExcluidaTamanhoMaior(loja)) {
+        const lojaExcluida =
+          (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+          (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja));
+
+        if (lojaExcluida) {
           vendasAjustadas[loja] = 0;
         } else {
           vendasAjustadas[loja] = vendasPorLoja[loja];
@@ -193,7 +218,10 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
     // Passo 1: Calcular floor e resto para cada loja
     lojasPCP.forEach(loja => {
-      const lojaExcluida = isTamMaior && lojaExcluidaTamanhoMaior(loja);
+      const lojaExcluida =
+        (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+        (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja));
+
       if (lojaExcluida) {
         distribuicao[loja] = 0;
       } else {

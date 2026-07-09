@@ -53,8 +53,8 @@ const AuditTable = ({ data = [], filters = {} }) => {
       },
       'PORTELLE': {
         tipo: 'Regra especial',
-        criterio: 'familia de maior valor com reducao de base',
-        origem: 'historico de MARINE reduzido para 33%',
+        criterio: 'familia de maior valor com limite manual de plano',
+        origem: 'historico de MARINE reduzido proporcionalmente para 400 pecas',
       },
     };
 

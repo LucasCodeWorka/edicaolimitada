@@ -113,8 +113,8 @@
     ]
   },
   "kpiData": {
-    "plano2026": 29245,
-    "plano2026Original": 29245,
+    "plano2026": 28211,
+    "plano2026Original": 28211,
     "venda2025": 26592,
     "inverno26": 0,
     "inverno25": 0,
@@ -124,11 +124,11 @@
   "grupoData": [
     {
       "nome": "CALCA",
-      "valor": 18176
+      "valor": 17565
     },
     {
       "nome": "SUTIA",
-      "valor": 6430
+      "valor": 6047
     },
     {
       "nome": "CAMISOLA",
@@ -143,16 +143,16 @@
       "valor": 463
     },
     {
-      "nome": "CINTA",
-      "valor": 202
-    },
-    {
       "nome": "CROPPED",
       "valor": 185
     },
     {
       "nome": "SHORT DOLL",
       "valor": 171
+    },
+    {
+      "nome": "CINTA",
+      "valor": 162
     },
     {
       "nome": "ROBE",
@@ -235,10 +235,6 @@
       "valor": 1618
     },
     {
-      "nome": "PORTELLE",
-      "valor": 1434
-    },
-    {
       "nome": "VISCOW",
       "valor": 990
     },
@@ -249,6 +245,10 @@
     {
       "nome": "LOVELY",
       "valor": 540
+    },
+    {
+      "nome": "PORTELLE",
+      "valor": 400
     },
     {
       "nome": "KISS ME PLUS",
@@ -328,7 +328,7 @@
     },
     {
       "nome": "LUXE",
-      "valor": 12602
+      "valor": 11568
     },
     {
       "nome": "LOUNGEWEAR",
@@ -372,7 +372,7 @@
   "subgrupoData": [
     {
       "nome": "CALCINHA FIO DENTAL",
-      "valor": 10095
+      "valor": 9597
     },
     {
       "nome": "CAMISOLA CURTA",
@@ -387,16 +387,16 @@
       "valor": 2181
     },
     {
-      "nome": "CALCINHA BIQUINI",
-      "valor": 2099
-    },
-    {
       "nome": "CALCINHA TANGA",
       "valor": 2078
     },
     {
+      "nome": "CALCINHA BIQUINI",
+      "valor": 1986
+    },
+    {
       "nome": "SUTIA PUSH UP (COM BOLHA)",
-      "valor": 1789
+      "valor": 1517
     },
     {
       "nome": "CALCINHA ALTA",
@@ -407,12 +407,12 @@
       "valor": 924
     },
     {
-      "nome": "SUTIA SEM BOJO",
-      "valor": 734
-    },
-    {
       "nome": "SUTIA TRIANGULAR",
       "valor": 678
+    },
+    {
+      "nome": "SUTIA SEM BOJO",
+      "valor": 623
     },
     {
       "nome": "BODY",
@@ -427,12 +427,12 @@
       "valor": 253
     },
     {
-      "nome": "CINTA LIGA",
-      "valor": 202
-    },
-    {
       "nome": "SUTIA DECOTE",
       "valor": 191
+    },
+    {
+      "nome": "CINTA LIGA",
+      "valor": 162
     },
     {
       "nome": "SHORT DOLL",
@@ -567,10 +567,6 @@
       "valor": 768
     },
     {
-      "nome": "REF-601785",
-      "valor": 691
-    },
-    {
       "nome": "REF-501749",
       "valor": 668
     },
@@ -652,10 +648,6 @@
     },
     {
       "nome": "REF-503149",
-      "valor": 378
-    },
-    {
-      "nome": "REF-603185",
       "valor": 378
     },
     {
@@ -763,6 +755,10 @@
       "valor": 193
     },
     {
+      "nome": "REF-601785",
+      "valor": 193
+    },
+    {
       "nome": "REF-603382",
       "valor": 191
     },
@@ -787,20 +783,12 @@
       "valor": 158
     },
     {
-      "nome": "REF-601085",
-      "valor": 158
-    },
-    {
       "nome": "REF-601083",
       "valor": 156
     },
     {
       "nome": "REF-606186",
       "valor": 156
-    },
-    {
-      "nome": "REF-603385",
-      "valor": 152
     },
     {
       "nome": "REF-603182",
@@ -839,6 +827,10 @@
       "valor": 108
     },
     {
+      "nome": "REF-603185",
+      "valor": 106
+    },
+    {
       "nome": "REF-341001",
       "valor": 99
     },
@@ -867,10 +859,6 @@
       "valor": 63
     },
     {
-      "nome": "REF-606775",
-      "valor": 55
-    },
-    {
       "nome": "REF-136209",
       "valor": 52
     },
@@ -883,8 +871,16 @@
       "valor": 45
     },
     {
+      "nome": "REF-601085",
+      "valor": 45
+    },
+    {
       "nome": "REF-703302",
       "valor": 45
+    },
+    {
+      "nome": "REF-603385",
+      "valor": 41
     },
     {
       "nome": "REF-101704",
@@ -933,6 +929,10 @@
     {
       "nome": "REF-136113",
       "valor": 17
+    },
+    {
+      "nome": "REF-606775",
+      "valor": 15
     },
     {
       "nome": "REF-136219",
@@ -1308,7 +1308,7 @@
     },
     {
       "mes": "AGOSTO",
-      "valor": 15066
+      "valor": 14032
     },
     {
       "mes": "SETEMBRO",
@@ -8975,12 +8975,12 @@
       "cor": "OCEANO",
       "tam": "G",
       "linha": "LUXE",
-      "plano": 14,
+      "plano": 4,
       "vendaBase": 34,
       "percCor": "40.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -8991,12 +8991,12 @@
       "cor": "PRETO",
       "tam": "G",
       "linha": "LUXE",
-      "plano": 20,
+      "plano": 6,
       "vendaBase": 34,
       "percCor": "60.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9007,12 +9007,12 @@
       "cor": "OCEANO",
       "tam": "GG",
       "linha": "LUXE",
-      "plano": 11,
+      "plano": 3,
       "vendaBase": 27.066666666666663,
       "percCor": "40.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9023,12 +9023,12 @@
       "cor": "PRETO",
       "tam": "GG",
       "linha": "LUXE",
-      "plano": 16,
+      "plano": 4,
       "vendaBase": 27.066666666666663,
       "percCor": "60.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9038,301 +9038,301 @@
       "ref": "601085",
       "cor": "OCEANO",
       "tam": "M",
+      "linha": "LUXE",
+      "plano": 4,
+      "vendaBase": 33,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA BIQUINI",
+      "ref": "601085",
+      "cor": "PRETO",
+      "tam": "M",
+      "linha": "LUXE",
+      "plano": 6,
+      "vendaBase": 33,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA BIQUINI",
+      "ref": "601085",
+      "cor": "OCEANO",
+      "tam": "P",
+      "linha": "LUXE",
+      "plano": 7,
+      "vendaBase": 64,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA BIQUINI",
+      "ref": "601085",
+      "cor": "PRETO",
+      "tam": "P",
+      "linha": "LUXE",
+      "plano": 11,
+      "vendaBase": 64,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "OCEANO",
+      "tam": "G",
+      "linha": "LUXE",
+      "plano": 18,
+      "vendaBase": 160,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "PRETO",
+      "tam": "G",
+      "linha": "LUXE",
+      "plano": 27,
+      "vendaBase": 160,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "OCEANO",
+      "tam": "GG",
+      "linha": "LUXE",
+      "plano": 4,
+      "vendaBase": 41,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "PRETO",
+      "tam": "GG",
+      "linha": "LUXE",
+      "plano": 7,
+      "vendaBase": 41,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "OCEANO",
+      "tam": "M",
+      "linha": "LUXE",
+      "plano": 29,
+      "vendaBase": 261,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "PRETO",
+      "tam": "M",
+      "linha": "LUXE",
+      "plano": 44,
+      "vendaBase": 261,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "OCEANO",
+      "tam": "P",
+      "linha": "LUXE",
+      "plano": 26,
+      "vendaBase": 229,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CALCA",
+      "subgrupo": "CALCINHA FIO DENTAL",
+      "ref": "601785",
+      "cor": "PRETO",
+      "tam": "P",
+      "linha": "LUXE",
+      "plano": 38,
+      "vendaBase": 229,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CINTA",
+      "subgrupo": "CINTA LIGA",
+      "ref": "606775",
+      "cor": "OCEANO",
+      "tam": "U",
+      "linha": "LUXE",
+      "plano": 6,
+      "vendaBase": 55,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "CINTA",
+      "subgrupo": "CINTA LIGA",
+      "ref": "606775",
+      "cor": "PRETO",
+      "tam": "U",
+      "linha": "LUXE",
+      "plano": 9,
+      "vendaBase": 55,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
+      "ref": "603185",
+      "cor": "OCEANO",
+      "tam": "40",
+      "linha": "LUXE",
+      "plano": 7,
+      "vendaBase": 64,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
+      "ref": "603185",
+      "cor": "PRETO",
+      "tam": "40",
+      "linha": "LUXE",
+      "plano": 11,
+      "vendaBase": 64,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
+      "ref": "603185",
+      "cor": "OCEANO",
+      "tam": "42",
+      "linha": "LUXE",
+      "plano": 15,
+      "vendaBase": 138,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
+      "ref": "603185",
+      "cor": "PRETO",
+      "tam": "42",
+      "linha": "LUXE",
+      "plano": 23,
+      "vendaBase": 138,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
+      "ref": "603185",
+      "cor": "OCEANO",
+      "tam": "44",
       "linha": "LUXE",
       "plano": 13,
-      "vendaBase": 33,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA BIQUINI",
-      "ref": "601085",
-      "cor": "PRETO",
-      "tam": "M",
-      "linha": "LUXE",
-      "plano": 20,
-      "vendaBase": 33,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA BIQUINI",
-      "ref": "601085",
-      "cor": "OCEANO",
-      "tam": "P",
-      "linha": "LUXE",
-      "plano": 26,
-      "vendaBase": 64,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA BIQUINI",
-      "ref": "601085",
-      "cor": "PRETO",
-      "tam": "P",
-      "linha": "LUXE",
-      "plano": 38,
-      "vendaBase": 64,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "OCEANO",
-      "tam": "G",
-      "linha": "LUXE",
-      "plano": 64,
-      "vendaBase": 160,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "PRETO",
-      "tam": "G",
-      "linha": "LUXE",
-      "plano": 96,
-      "vendaBase": 160,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "OCEANO",
-      "tam": "GG",
-      "linha": "LUXE",
-      "plano": 16,
-      "vendaBase": 41,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "PRETO",
-      "tam": "GG",
-      "linha": "LUXE",
-      "plano": 25,
-      "vendaBase": 41,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "OCEANO",
-      "tam": "M",
-      "linha": "LUXE",
-      "plano": 104,
-      "vendaBase": 261,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "PRETO",
-      "tam": "M",
-      "linha": "LUXE",
-      "plano": 157,
-      "vendaBase": 261,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "OCEANO",
-      "tam": "P",
-      "linha": "LUXE",
-      "plano": 92,
-      "vendaBase": 229,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CALCA",
-      "subgrupo": "CALCINHA FIO DENTAL",
-      "ref": "601785",
-      "cor": "PRETO",
-      "tam": "P",
-      "linha": "LUXE",
-      "plano": 137,
-      "vendaBase": 229,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CINTA",
-      "subgrupo": "CINTA LIGA",
-      "ref": "606775",
-      "cor": "OCEANO",
-      "tam": "U",
-      "linha": "LUXE",
-      "plano": 22,
-      "vendaBase": 55,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "CINTA",
-      "subgrupo": "CINTA LIGA",
-      "ref": "606775",
-      "cor": "PRETO",
-      "tam": "U",
-      "linha": "LUXE",
-      "plano": 33,
-      "vendaBase": 55,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
-      "ref": "603185",
-      "cor": "OCEANO",
-      "tam": "40",
-      "linha": "LUXE",
-      "plano": 26,
-      "vendaBase": 64,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
-      "ref": "603185",
-      "cor": "PRETO",
-      "tam": "40",
-      "linha": "LUXE",
-      "plano": 38,
-      "vendaBase": 64,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
-      "ref": "603185",
-      "cor": "OCEANO",
-      "tam": "42",
-      "linha": "LUXE",
-      "plano": 55,
-      "vendaBase": 138,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
-      "ref": "603185",
-      "cor": "PRETO",
-      "tam": "42",
-      "linha": "LUXE",
-      "plano": 83,
-      "vendaBase": 138,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
-      "ref": "603185",
-      "cor": "OCEANO",
-      "tam": "44",
-      "linha": "LUXE",
-      "plano": 45,
       "vendaBase": 113,
       "percCor": "40.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9343,12 +9343,12 @@
       "cor": "PRETO",
       "tam": "44",
       "linha": "LUXE",
-      "plano": 68,
+      "plano": 19,
       "vendaBase": 113,
       "percCor": "60.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9359,12 +9359,12 @@
       "cor": "OCEANO",
       "tam": "46",
       "linha": "LUXE",
-      "plano": 25,
+      "plano": 7,
       "vendaBase": 63,
       "percCor": "40.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9373,94 +9373,94 @@
       "subgrupo": "SUTIA PUSH UP (COM BOLHA)",
       "ref": "603185",
       "cor": "PRETO",
-      "tam": "46",
-      "linha": "LUXE",
-      "plano": 38,
-      "vendaBase": 63,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA SEM BOJO",
-      "ref": "603385",
-      "cor": "OCEANO",
-      "tam": "42",
-      "linha": "LUXE",
-      "plano": 26,
-      "vendaBase": 66,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA SEM BOJO",
-      "ref": "603385",
-      "cor": "PRETO",
-      "tam": "42",
-      "linha": "LUXE",
-      "plano": 40,
-      "vendaBase": 66,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA SEM BOJO",
-      "ref": "603385",
-      "cor": "OCEANO",
-      "tam": "44",
-      "linha": "LUXE",
-      "plano": 16,
-      "vendaBase": 40,
-      "percCor": "40.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA SEM BOJO",
-      "ref": "603385",
-      "cor": "PRETO",
-      "tam": "44",
-      "linha": "LUXE",
-      "plano": 24,
-      "vendaBase": 40,
-      "percCor": "60.0%",
-      "familiaHist": "MARINE",
-      "temDepara": "SIM",
-      "temPercentual": "SIM"
-    },
-    {
-      "colecao": "VERAO 27",
-      "familia": "PORTELLE",
-      "grupo": "SUTIA",
-      "subgrupo": "SUTIA SEM BOJO",
-      "ref": "603385",
-      "cor": "OCEANO",
       "tam": "46",
       "linha": "LUXE",
       "plano": 11,
+      "vendaBase": 63,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA SEM BOJO",
+      "ref": "603385",
+      "cor": "OCEANO",
+      "tam": "42",
+      "linha": "LUXE",
+      "plano": 7,
+      "vendaBase": 66,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA SEM BOJO",
+      "ref": "603385",
+      "cor": "PRETO",
+      "tam": "42",
+      "linha": "LUXE",
+      "plano": 11,
+      "vendaBase": 66,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA SEM BOJO",
+      "ref": "603385",
+      "cor": "OCEANO",
+      "tam": "44",
+      "linha": "LUXE",
+      "plano": 4,
+      "vendaBase": 40,
+      "percCor": "40.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA SEM BOJO",
+      "ref": "603385",
+      "cor": "PRETO",
+      "tam": "44",
+      "linha": "LUXE",
+      "plano": 7,
+      "vendaBase": 40,
+      "percCor": "60.0%",
+      "familiaHist": "MARINE",
+      "temDepara": "SIM",
+      "temPercentual": "AJUSTE_400"
+    },
+    {
+      "colecao": "VERAO 27",
+      "familia": "PORTELLE",
+      "grupo": "SUTIA",
+      "subgrupo": "SUTIA SEM BOJO",
+      "ref": "603385",
+      "cor": "OCEANO",
+      "tam": "46",
+      "linha": "LUXE",
+      "plano": 3,
       "vendaBase": 27,
       "percCor": "40.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9471,12 +9471,12 @@
       "cor": "PRETO",
       "tam": "46",
       "linha": "LUXE",
-      "plano": 16,
+      "plano": 4,
       "vendaBase": 27,
       "percCor": "60.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9487,12 +9487,12 @@
       "cor": "OCEANO",
       "tam": "48",
       "linha": "LUXE",
-      "plano": 8,
+      "plano": 2,
       "vendaBase": 19,
       "percCor": "40.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -9503,12 +9503,12 @@
       "cor": "PRETO",
       "tam": "48",
       "linha": "LUXE",
-      "plano": 11,
+      "plano": 3,
       "vendaBase": 19,
       "percCor": "60.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "SIM"
+      "temPercentual": "AJUSTE_400"
     },
     {
       "colecao": "VERAO 27",
@@ -11878,21 +11878,21 @@
           31
         ],
         "plano2026": [
-          348,
-          171,
-          185,
-          99,
-          93,
-          87,
-          81,
-          68,
-          56,
-          58,
-          27,
+          97,
+          48,
+          52,
+          28,
+          26,
+          24,
+          23,
+          19,
           16,
-          22,
-          72,
-          51
+          16,
+          7,
+          4,
+          6,
+          20,
+          14
         ]
       },
       {
@@ -12384,21 +12384,21 @@
           31
         ],
         "plano2026": [
-          348,
-          171,
-          185,
-          99,
-          93,
-          87,
-          81,
-          68,
-          56,
-          58,
-          27,
+          97,
+          48,
+          52,
+          28,
+          26,
+          24,
+          23,
+          19,
           16,
-          22,
-          72,
-          51
+          16,
+          7,
+          4,
+          6,
+          20,
+          14
         ]
       },
       {

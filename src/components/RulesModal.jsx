@@ -56,19 +56,19 @@ const RulesModal = ({ isOpen, onClose, dadosAjustados, kpiData, filters }) => {
       titulo: 'Mapeamento Família Nova → Histórica (De-Para)',
       descricao: 'As famílias da nova coleção (Verão 27) buscam dados históricos de famílias equivalentes do Verão 26.',
       status: 'info',
-      detalhes: 'BLOOM ← SORRENTINA | AQUALUME ← BELLA | LOVELY ← BREEZE | AFTER SUN ← MARINE | PORTELLE ← MARINE (33%) | FLOR DO OCEANO ← DELICATTI | Famílias com dados manuais: LOVE APPEAL, NOIVAS, LACE, CONFORT VANILLA'
+      detalhes: 'BLOOM ← SORRENTINA | AQUALUME ← BELLA | LOVELY ← BREEZE | AFTER SUN ← MARINE | PORTELLE ← MARINE (limite manual de 400 peças) | FLOR DO OCEANO ← DELICATTI | Famílias com dados manuais: LOVE APPEAL, NOIVAS, LACE, CONFORT VANILLA'
     },
     {
       titulo: 'Famílias com Base Especial',
       descricao: 'Algumas famílias usam bases de dados específicas ao invés do mapeamento histórico padrão.',
       status: 'info',
-      detalhes: 'LOVE APPEAL: 1º semestre 2026 (1.785 un) | NOIVAS: 1º semestre 2026 (1.499 un) | CONFORT VANILLA: BRANCO CONFORT 4.855 un convertido para VANILINA e reduzido para 2/6 = 1.618 un | LACE: dados manuais (127 un) | PORTELLE: 33% do histórico MARINE (redução por peça cara)'
+      detalhes: 'LOVE APPEAL: 1º semestre 2026 (1.785 un) | NOIVAS: 1º semestre 2026 (1.499 un) | CONFORT VANILLA: BRANCO CONFORT 4.855 un convertido para VANILINA e reduzido para 2/6 = 1.618 un | LACE: dados manuais (127 un) | PORTELLE: plano reduzido proporcionalmente para 400 peças'
     },
     {
       titulo: 'Regras PCP Aplicadas',
       descricao: 'Regras específicas definidas pelo PCP para distribuição correta.',
       status: 'ativo',
-      detalhes: 'WISHES LUMIAR: distribuída | NOIVAS refs 603086, 606786: incluídas | CINTA LIGA 606775: 56 un | CETIM: tamanhos M e G garantidos | Tamanhos maiores: excluídos de DOM LUIS, NORTH JOQUEI, ECOMMERCE'
+      detalhes: 'WISHES LUMIAR: distribuída | NOIVAS refs 603086, 606786: incluídas | CINTA LIGA 606775 incluída | CETIM: tamanhos M e G garantidos | Tamanhos maiores: excluídos de DOM LUIS, NORTH JOQUEI, ECOMMERCE | PORTELLE: lojas pequenas recebem somente cor PRETO'
     }
   ];
 
