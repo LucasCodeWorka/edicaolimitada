@@ -113,8 +113,8 @@
     ]
   },
   "kpiData": {
-    "plano2026": 22475,
-    "plano2026Original": 22475,
+    "plano2026": 22659,
+    "plano2026Original": 22659,
     "venda2025": 26592,
     "inverno26": 0,
     "inverno25": 0,
@@ -124,11 +124,11 @@
   "grupoData": [
     {
       "nome": "CALCA",
-      "valor": 14262
+      "valor": 14364
     },
     {
       "nome": "SUTIA",
-      "valor": 5183
+      "valor": 5265
     },
     {
       "nome": "CAMISOLA",
@@ -204,7 +204,7 @@
     },
     {
       "nome": "AFTER SUN",
-      "valor": 2594
+      "valor": 2778
     },
     {
       "nome": "AQUALUME",
@@ -324,7 +324,7 @@
   "linhaData": [
     {
       "nome": "FASHION",
-      "valor": 11593
+      "valor": 11777
     },
     {
       "nome": "LUXE",
@@ -372,15 +372,15 @@
   "subgrupoData": [
     {
       "nome": "CALCINHA FIO DENTAL",
-      "valor": 7742
+      "valor": 7806
     },
     {
       "nome": "SUTIA MEIA TACA",
-      "valor": 1880
+      "valor": 1912
     },
     {
       "nome": "CALCINHA TANGA",
-      "valor": 1815
+      "valor": 1843
     },
     {
       "nome": "CALCINHA STRING",
@@ -392,15 +392,15 @@
     },
     {
       "nome": "CALCINHA BIQUINI",
-      "valor": 1535
+      "valor": 1545
+    },
+    {
+      "nome": "SUTIA PUSH UP (COM BOLHA)",
+      "valor": 1352
     },
     {
       "nome": "CALCINHA ALTA",
       "valor": 1339
-    },
-    {
-      "nome": "SUTIA PUSH UP (COM BOLHA)",
-      "valor": 1326
     },
     {
       "nome": "SUTIA CROPPED",
@@ -408,7 +408,7 @@
     },
     {
       "nome": "SUTIA TRIANGULAR",
-      "valor": 635
+      "valor": 659
     },
     {
       "nome": "SUTIA SEM BOJO",
@@ -548,7 +548,7 @@
     },
     {
       "nome": "REF-501749",
-      "valor": 668
+      "valor": 716
     },
     {
       "nome": "REF-601286",
@@ -579,12 +579,12 @@
       "valor": 446
     },
     {
-      "nome": "REF-601084",
+      "nome": "REF-501049",
       "valor": 446
     },
     {
-      "nome": "REF-501049",
-      "valor": 418
+      "nome": "REF-601084",
+      "valor": 446
     },
     {
       "nome": "REF-601284",
@@ -603,6 +603,10 @@
       "valor": 416
     },
     {
+      "nome": "REF-503149",
+      "valor": 404
+    },
+    {
       "nome": "REF-501701",
       "valor": 386
     },
@@ -613,10 +617,6 @@
     {
       "nome": "REF-501723",
       "valor": 385
-    },
-    {
-      "nome": "REF-503149",
-      "valor": 378
     },
     {
       "nome": "REF-501742",
@@ -663,6 +663,10 @@
       "valor": 324
     },
     {
+      "nome": "REF-503449",
+      "valor": 324
+    },
+    {
       "nome": "REF-701184",
       "valor": 324
     },
@@ -673,10 +677,6 @@
     {
       "nome": "REF-503120",
       "valor": 308
-    },
-    {
-      "nome": "REF-503449",
-      "valor": 300
     },
     {
       "nome": "REF-501021",
@@ -699,12 +699,12 @@
       "valor": 259
     },
     {
-      "nome": "REF-506124",
-      "valor": 250
+      "nome": "REF-503049",
+      "valor": 254
     },
     {
-      "nome": "REF-503049",
-      "valor": 238
+      "nome": "REF-506124",
+      "valor": 250
     },
     {
       "nome": "REF-101700",
@@ -712,11 +712,11 @@
     },
     {
       "nome": "REF-703049",
-      "valor": 218
+      "valor": 234
     },
     {
       "nome": "REF-701749",
-      "valor": 216
+      "valor": 232
     },
     {
       "nome": "REF-603083",
@@ -752,7 +752,7 @@
     },
     {
       "nome": "REF-501149",
-      "valor": 158
+      "valor": 168
     },
     {
       "nome": "REF-603483",
@@ -1308,7 +1308,7 @@
     },
     {
       "mes": "AGOSTO",
-      "valor": 11849
+      "valor": 12033
     },
     {
       "mes": "SETEMBRO",
@@ -1343,12 +1343,12 @@
       "cor": "BRANCO",
       "tam": "G",
       "linha": "FASHION",
-      "plano": 17,
+      "plano": 18,
       "vendaBase": 34,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1359,12 +1359,12 @@
       "cor": "NECTAR",
       "tam": "G",
       "linha": "FASHION",
-      "plano": 17,
+      "plano": 18,
       "vendaBase": 34,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1375,12 +1375,12 @@
       "cor": "BRANCO",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 14,
+      "plano": 15,
       "vendaBase": 27.066666666666663,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1391,12 +1391,12 @@
       "cor": "NECTAR",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 14,
+      "plano": 15,
       "vendaBase": 27.066666666666663,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1407,12 +1407,12 @@
       "cor": "BRANCO",
       "tam": "M",
       "linha": "FASHION",
-      "plano": 16,
+      "plano": 17,
       "vendaBase": 33,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1423,12 +1423,12 @@
       "cor": "NECTAR",
       "tam": "M",
       "linha": "FASHION",
-      "plano": 16,
+      "plano": 17,
       "vendaBase": 33,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1439,12 +1439,12 @@
       "cor": "BRANCO",
       "tam": "P",
       "linha": "FASHION",
-      "plano": 32,
+      "plano": 34,
       "vendaBase": 64,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1455,12 +1455,12 @@
       "cor": "NECTAR",
       "tam": "P",
       "linha": "FASHION",
-      "plano": 32,
+      "plano": 34,
       "vendaBase": 64,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1471,12 +1471,12 @@
       "cor": "BRANCO",
       "tam": "EG",
       "linha": "FASHION",
-      "plano": 49,
+      "plano": 53,
       "vendaBase": 97.65,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1487,12 +1487,12 @@
       "cor": "NECTAR",
       "tam": "EG",
       "linha": "FASHION",
-      "plano": 49,
+      "plano": 53,
       "vendaBase": 97.65,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1503,12 +1503,12 @@
       "cor": "BRANCO",
       "tam": "G",
       "linha": "FASHION",
-      "plano": 80,
+      "plano": 86,
       "vendaBase": 160,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1519,12 +1519,12 @@
       "cor": "NECTAR",
       "tam": "G",
       "linha": "FASHION",
-      "plano": 80,
+      "plano": 86,
       "vendaBase": 160,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1535,12 +1535,12 @@
       "cor": "BRANCO",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 10,
+      "plano": 11,
       "vendaBase": 41,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1551,12 +1551,12 @@
       "cor": "NECTAR",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 10,
+      "plano": 11,
       "vendaBase": 41,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1567,12 +1567,12 @@
       "cor": "BRANCO",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 10,
+      "plano": 11,
       "vendaBase": 41,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1583,12 +1583,12 @@
       "cor": "NECTAR",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 10,
+      "plano": 11,
       "vendaBase": 41,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1599,12 +1599,12 @@
       "cor": "BRANCO",
       "tam": "M",
       "linha": "FASHION",
-      "plano": 130,
+      "plano": 139,
       "vendaBase": 261,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1615,12 +1615,12 @@
       "cor": "NECTAR",
       "tam": "M",
       "linha": "FASHION",
-      "plano": 130,
+      "plano": 139,
       "vendaBase": 261,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1631,12 +1631,12 @@
       "cor": "BRANCO",
       "tam": "P",
       "linha": "FASHION",
-      "plano": 114,
+      "plano": 122,
       "vendaBase": 229,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1647,12 +1647,12 @@
       "cor": "NECTAR",
       "tam": "P",
       "linha": "FASHION",
-      "plano": 114,
+      "plano": 122,
       "vendaBase": 229,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1663,12 +1663,12 @@
       "cor": "BRANCO",
       "tam": "XG",
       "linha": "FASHION",
-      "plano": 49,
+      "plano": 52,
       "vendaBase": 97.65,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1679,12 +1679,12 @@
       "cor": "NECTAR",
       "tam": "XG",
       "linha": "FASHION",
-      "plano": 49,
+      "plano": 52,
       "vendaBase": 97.65,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1695,12 +1695,12 @@
       "cor": "BRANCO",
       "tam": "G",
       "linha": "FASHION",
-      "plano": 61,
+      "plano": 65,
       "vendaBase": 122,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1711,12 +1711,12 @@
       "cor": "NECTAR",
       "tam": "G",
       "linha": "FASHION",
-      "plano": 61,
+      "plano": 65,
       "vendaBase": 122,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1727,12 +1727,12 @@
       "cor": "BRANCO",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 18,
+      "plano": 19,
       "vendaBase": 35,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1743,12 +1743,12 @@
       "cor": "NECTAR",
       "tam": "GG",
       "linha": "FASHION",
-      "plano": 18,
+      "plano": 19,
       "vendaBase": 35,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1759,12 +1759,12 @@
       "cor": "BRANCO",
       "tam": "M",
       "linha": "FASHION",
-      "plano": 82,
+      "plano": 88,
       "vendaBase": 165,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1775,12 +1775,12 @@
       "cor": "NECTAR",
       "tam": "M",
       "linha": "FASHION",
-      "plano": 82,
+      "plano": 88,
       "vendaBase": 165,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1791,12 +1791,12 @@
       "cor": "BRANCO",
       "tam": "P",
       "linha": "FASHION",
-      "plano": 48,
+      "plano": 51,
       "vendaBase": 96,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1807,12 +1807,12 @@
       "cor": "NECTAR",
       "tam": "P",
       "linha": "FASHION",
-      "plano": 48,
+      "plano": 51,
       "vendaBase": 96,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1823,12 +1823,12 @@
       "cor": "BRANCO",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 52,
+      "plano": 56,
       "vendaBase": 104.55,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1839,12 +1839,12 @@
       "cor": "NECTAR",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 52,
+      "plano": 56,
       "vendaBase": 104.55,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1855,12 +1855,12 @@
       "cor": "BRANCO",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 34,
+      "plano": 36,
       "vendaBase": 68,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1871,12 +1871,12 @@
       "cor": "NECTAR",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 34,
+      "plano": 36,
       "vendaBase": 68,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1887,12 +1887,12 @@
       "cor": "BRANCO",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 14,
+      "plano": 15,
       "vendaBase": 55.675,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1903,12 +1903,12 @@
       "cor": "NECTAR",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 14,
+      "plano": 15,
       "vendaBase": 55.675,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1919,12 +1919,12 @@
       "cor": "BRANCO",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 14,
+      "plano": 15,
       "vendaBase": 55.675,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1935,12 +1935,12 @@
       "cor": "NECTAR",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 14,
+      "plano": 15,
       "vendaBase": 55.675,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1951,12 +1951,12 @@
       "cor": "BRANCO",
       "tam": "48",
       "linha": "FASHION",
-      "plano": 19,
+      "plano": 20,
       "vendaBase": 75.8625,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1967,12 +1967,12 @@
       "cor": "NECTAR",
       "tam": "48",
       "linha": "FASHION",
-      "plano": 19,
+      "plano": 20,
       "vendaBase": 75.8625,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1983,12 +1983,12 @@
       "cor": "BRANCO",
       "tam": "48",
       "linha": "FASHION",
-      "plano": 19,
+      "plano": 20,
       "vendaBase": 75.8625,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -1999,12 +1999,12 @@
       "cor": "NECTAR",
       "tam": "48",
       "linha": "FASHION",
-      "plano": 19,
+      "plano": 20,
       "vendaBase": 75.8625,
       "percCor": "25.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2015,12 +2015,12 @@
       "cor": "BRANCO",
       "tam": "50",
       "linha": "FASHION",
-      "plano": 38,
+      "plano": 41,
       "vendaBase": 75.8625,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2031,12 +2031,12 @@
       "cor": "NECTAR",
       "tam": "50",
       "linha": "FASHION",
-      "plano": 38,
+      "plano": 41,
       "vendaBase": 75.8625,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2047,12 +2047,12 @@
       "cor": "BRANCO",
       "tam": "52",
       "linha": "FASHION",
-      "plano": 38,
+      "plano": 41,
       "vendaBase": 75.8625,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2063,12 +2063,12 @@
       "cor": "NECTAR",
       "tam": "52",
       "linha": "FASHION",
-      "plano": 38,
+      "plano": 41,
       "vendaBase": 75.8625,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2079,12 +2079,12 @@
       "cor": "BRANCO",
       "tam": "40",
       "linha": "FASHION",
-      "plano": 32,
+      "plano": 34,
       "vendaBase": 64,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2095,12 +2095,12 @@
       "cor": "NECTAR",
       "tam": "40",
       "linha": "FASHION",
-      "plano": 32,
+      "plano": 34,
       "vendaBase": 64,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2111,12 +2111,12 @@
       "cor": "BRANCO",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 69,
+      "plano": 74,
       "vendaBase": 138,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2127,12 +2127,12 @@
       "cor": "NECTAR",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 69,
+      "plano": 74,
       "vendaBase": 138,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2143,12 +2143,12 @@
       "cor": "BRANCO",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 56,
+      "plano": 60,
       "vendaBase": 113,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2159,12 +2159,12 @@
       "cor": "NECTAR",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 56,
+      "plano": 60,
       "vendaBase": 113,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2175,12 +2175,12 @@
       "cor": "BRANCO",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 32,
+      "plano": 34,
       "vendaBase": 63,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2191,12 +2191,12 @@
       "cor": "NECTAR",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 32,
+      "plano": 34,
       "vendaBase": 63,
       "percCor": "50.0%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2207,12 +2207,12 @@
       "cor": "BRANCO",
       "tam": "40",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2223,12 +2223,12 @@
       "cor": "NECTAR",
       "tam": "40",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2239,12 +2239,12 @@
       "cor": "VERDINHO",
       "tam": "40",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2255,12 +2255,12 @@
       "cor": "BRANCO",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2271,12 +2271,12 @@
       "cor": "NECTAR",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2287,12 +2287,12 @@
       "cor": "VERDINHO",
       "tam": "42",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2303,12 +2303,12 @@
       "cor": "BRANCO",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2319,12 +2319,12 @@
       "cor": "NECTAR",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2335,12 +2335,12 @@
       "cor": "VERDINHO",
       "tam": "44",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2351,12 +2351,12 @@
       "cor": "BRANCO",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2367,12 +2367,12 @@
       "cor": "NECTAR",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -2383,12 +2383,12 @@
       "cor": "VERDINHO",
       "tam": "46",
       "linha": "FASHION",
-      "plano": 25,
+      "plano": 27,
       "vendaBase": 75.8625,
       "percCor": "33.3%",
       "familiaHist": "MARINE",
       "temDepara": "SIM",
-      "temPercentual": "NAO"
+      "temPercentual": "AJUSTE_6_FAMILIA"
     },
     {
       "colecao": "VERAO 27",
@@ -11693,21 +11693,21 @@
           93
         ],
         "plano2026": [
-          630,
-          309,
-          334,
-          179,
-          168,
-          158,
-          147,
-          123,
-          102,
-          105,
-          48,
-          29,
-          40,
-          130,
-          92
+          675,
+          331,
+          358,
+          192,
+          180,
+          169,
+          157,
+          132,
+          109,
+          112,
+          51,
+          31,
+          43,
+          139,
+          99
         ]
       },
       {
@@ -12802,21 +12802,21 @@
           93
         ],
         "plano2026": [
-          630,
-          309,
-          334,
-          179,
-          168,
-          158,
-          147,
-          123,
-          102,
-          105,
-          48,
-          29,
-          40,
-          130,
-          92
+          675,
+          331,
+          358,
+          192,
+          180,
+          169,
+          157,
+          132,
+          109,
+          112,
+          51,
+          31,
+          43,
+          139,
+          99
         ]
       },
       {
