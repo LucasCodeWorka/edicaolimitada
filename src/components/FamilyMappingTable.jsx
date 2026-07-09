@@ -64,7 +64,7 @@ const FamilyMappingTable = ({ data, filters = {}, familiaLinhaMap = {} }) => {
         </div>
         <div className="flex items-center gap-3 text-white/90 text-[10px]">
           <button
-            onClick={() => exportMapeamentoFamilias(familiasFiltradas, lojasFiltradas, 'mapeamento_familias')}
+            onClick={() => exportMapeamentoFamilias(familiasFiltradas, lojasFiltradas, 'mapeamento_familias', lojas)}
             className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 text-white text-[11px] rounded transition-colors border border-white/30"
             title="Exportar para Excel"
           >

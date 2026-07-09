@@ -7,6 +7,7 @@ import MonthlyProductionChart from './components/MonthlyProductionChart';
 import ComparativeMatrix from './components/ComparativeMatrix';
 import RulesModal from './components/RulesModal';
 import FamilyMappingTable from './components/FamilyMappingTable';
+import AuditTable from './components/AuditTable';
 import {
   filterOptions,
   kpiData,
@@ -20,9 +21,6 @@ import {
   subgrupoData2025,
   refData2025
 } from '../data';
-
-// Aumento máximo em relação a 2025 (10%)
-const MAX_VARIACAO = 0.10;
 
 // Mapeamento de Família para Linha (baseado nos dados do CSV)
 const FAMILIA_LINHA_MAP = {
@@ -190,16 +188,14 @@ function App() {
     return { grupoAgg, familiaAgg, refAgg, linhaAgg, subgrupoAgg };
   }, [dadosFiltrados]);
 
-  // Calcular o fator de ajuste baseado no aumento máximo permitido
+  // Usar valores originais (sem redução - plano definido pelo Cairo)
   const dadosAjustados = useMemo(() => {
     const venda2025 = kpiFiltrado.venda2025;
     const plano2026Original = kpiFiltrado.plano2026;
-    const limiteMaximo = Math.round(venda2025 * (1 + MAX_VARIACAO));
 
-    const plano2026Ajustado = Math.min(plano2026Original, limiteMaximo);
-    const fatorReducao = plano2026Original > limiteMaximo
-      ? plano2026Ajustado / plano2026Original
-      : 1;
+    // SEM redução - usar valores originais do plano
+    const plano2026Ajustado = plano2026Original;
+    const fatorReducao = 1;
 
     const ajustarValor = (valor) => Math.round(valor * fatorReducao);
 
@@ -420,6 +416,9 @@ function App() {
 
           {/* Matriz Comparativa */}
           <ComparativeMatrix data={comparativoLojasData} filters={filters} familiaLinhaMap={FAMILIA_LINHA_MAP} />
+
+          {/* Tabela de Conferência / Memória de Cálculo */}
+          <AuditTable data={planoEdicaoLimitadaData} filters={filters} />
         </main>
       </div>
 

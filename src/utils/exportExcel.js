@@ -16,7 +16,7 @@ export const exportToExcel = (data, filename, sheetName = 'Dados') => {
 /**
  * Exporta tabela comparativa (Família x Lojas) para Excel
  */
-export const exportComparativoLojas = (familias, lojas, filename = 'comparativo_lojas') => {
+export const exportComparativoLojas = (familias, lojas, filename = 'comparativo_lojas', lojasOriginais = lojas) => {
   const data = [];
 
   familias.forEach(fam => {
@@ -24,14 +24,19 @@ export const exportComparativoLojas = (familias, lojas, filename = 'comparativo_
       'Família': fam.nome,
     };
 
+    const lojaIndices = lojas.map(loja => lojasOriginais.indexOf(loja));
+
     lojas.forEach((loja, idx) => {
-      row[`${loja} 2025`] = fam.vendas2025[idx] || 0;
-      row[`${loja} 2026`] = fam.plano2026[idx] || 0;
+      const origemIdx = lojaIndices[idx];
+      row[`${loja} 2025`] = origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0;
+      row[`${loja} 2026`] = origemIdx >= 0 ? fam.plano2026[origemIdx] || 0 : 0;
     });
 
-    row['Total 2025'] = fam.vendas2025.reduce((a, b) => a + b, 0);
-    row['Total 2026'] = fam.plano2026.reduce((a, b) => a + b, 0);
-    row['Var %'] = row['Total 2025'] > 0
+    row['Total 2025'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0), 0);
+    row['Total 2026'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.plano2026[origemIdx] || 0 : 0), 0);
+    row['Var %'] = fam.isBaseSemPlano
+      ? '-'
+      : row['Total 2025'] > 0
       ? ((row['Total 2026'] - row['Total 2025']) / row['Total 2025'] * 100).toFixed(1) + '%'
       : '-';
 
@@ -44,7 +49,7 @@ export const exportComparativoLojas = (familias, lojas, filename = 'comparativo_
 /**
  * Exporta mapeamento de famílias para Excel
  */
-export const exportMapeamentoFamilias = (familias, lojas, filename = 'mapeamento_familias') => {
+export const exportMapeamentoFamilias = (familias, lojas, filename = 'mapeamento_familias', lojasOriginais = lojas) => {
   const data = [];
 
   familias.forEach(fam => {
@@ -53,13 +58,16 @@ export const exportMapeamentoFamilias = (familias, lojas, filename = 'mapeamento
       'Família Anterior': fam.familiaAnterior,
     };
 
+    const lojaIndices = lojas.map(loja => lojasOriginais.indexOf(loja));
+
     lojas.forEach((loja, idx) => {
-      row[`${loja} 2025`] = fam.vendas2025[idx] || 0;
-      row[`${loja} 2026`] = fam.plano2026[idx] || 0;
+      const origemIdx = lojaIndices[idx];
+      row[`${loja} 2025`] = origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0;
+      row[`${loja} 2026`] = origemIdx >= 0 ? fam.plano2026[origemIdx] || 0 : 0;
     });
 
-    row['Total 2025'] = fam.vendas2025.reduce((a, b) => a + b, 0);
-    row['Total 2026'] = fam.plano2026.reduce((a, b) => a + b, 0);
+    row['Total 2025'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0), 0);
+    row['Total 2026'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.plano2026[origemIdx] || 0 : 0), 0);
 
     data.push(row);
   });
@@ -120,9 +128,7 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     return LOJAS_EXCLUIDAS_TAM_MAIOR.some(excl => lojaUpper.includes(excl.toUpperCase()));
   };
 
-  // Participação GERAL de cada loja baseada nos dados reais de venda 2025
-  // Total = 21.690 (KPI Venda 2025)
-  // 15 lojas separadas (sem consolidação)
+  // Participação GERAL de cada loja baseada no comparativo atual.
 
   const lojasPCP = [
     'MARAPONGA', 'IGUATEMI', 'PORTO ALEGRE', 'BARRA', 'SALVADOR', 'RIO MAR RECIFE',
@@ -130,24 +136,13 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     'RIOMAR KENNEDY', 'INTIMATES'
   ];
 
-  // Vendas 2025 por loja (Total = 21.690)
-  const vendasPorLoja = {
-    'MARAPONGA': 4909,
-    'IGUATEMI': 2405,
-    'PORTO ALEGRE': 2600,
-    'BARRA': 1396,
-    'SALVADOR': 1307,
-    'RIO MAR RECIFE': 1233,
-    'MORUMBI': 1141,
-    'PARANGABA': 958,
-    'DOM LUIS': 792,
-    'NORTH': 820,
-    'NORTH JOQUEI': 375,
-    'ECOMMERCE': 227,
-    'TABOSA': 308,
-    'RIOMAR KENNEDY': 1009,
-    'INTIMATES': 719
-  };
+  const vendasPorLoja = lojasPCP.reduce((acc, loja) => {
+    const lojaIdx = lojas.indexOf(loja);
+    acc[loja] = lojaIdx >= 0
+      ? familias.reduce((sum, fam) => sum + (fam.vendas2025[lojaIdx] || 0), 0)
+      : 0;
+    return acc;
+  }, {});
 
   const totalGeral = Object.values(vendasPorLoja).reduce((s, v) => s + v, 0);
   const participacaoPorLoja = {};

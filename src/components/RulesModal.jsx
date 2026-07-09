@@ -6,11 +6,9 @@ const RulesModal = ({ isOpen, onClose, dadosAjustados, kpiData, filters }) => {
   const rules = [
     {
       titulo: 'Limite de Aumento (10%)',
-      descricao: 'O plano de produção não pode exceder 10% de aumento em relação às vendas de 2025.',
-      status: dadosAjustados.fatorReducao < 1 ? 'aplicado' : 'nao-necessario',
-      detalhes: dadosAjustados.fatorReducao < 1
-        ? `Plano original: +${dadosAjustados.aumentoOriginal}% | Ajustado para: +${dadosAjustados.aumentoAjustado}%`
-        : 'O plano está dentro do limite permitido.'
+      descricao: 'Regra desativada para preservar o plano original definido pelo Cairo.',
+      status: 'nao-aplicado',
+      detalhes: `Plano exibido sem redução: ${Number(dadosAjustados.kpiAjustado.plano2026).toLocaleString('pt-BR')} un | Aumento informativo: +${dadosAjustados.aumentoAjustado}%`
     },
     {
       titulo: 'Mapeamento Família → Linha',

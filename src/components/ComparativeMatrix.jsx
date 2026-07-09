@@ -1,9 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, X, Expand, Minimize2, Calculator, Download } from 'lucide-react';
-import { planoEdicaoLimitadaData } from '../../data';
+import { kpiData, planoEdicaoLimitadaData } from '../../data';
 import { exportComparativoLojas, exportComparativoDetalhado } from '../utils/exportExcel';
-
-const MAX_VARIACAO = 0.10; // Aumento máximo de 10% em relação a 2025
 
 // Lojas excluídas para famílias de tamanhos maiores (PLUS)
 const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'ECOMMERCE'];
@@ -25,6 +23,8 @@ const fmt = (v, dec = 0) => Number(v || 0).toLocaleString('pt-BR', {
   minimumFractionDigits: dec,
   maximumFractionDigits: dec,
 });
+
+const soma = (valores = []) => valores.reduce((acc, valor) => acc + (Number(valor) || 0), 0);
 
 const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
   const { lojas, familias: familiasOriginal } = data;
@@ -76,23 +76,72 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
     return lojasFiltradas.map(loja => lojas.indexOf(loja));
   }, [lojas, lojasFiltradas]);
 
-  // Aplicar aumento máximo de 10% em relação a 2025
-  const familias = familiasFiltradas.map(familia => {
-    const plano2026Ajustado = familia.vendas2025.map((venda2025, idx) => {
-      const planoOriginal = familia.plano2026[idx];
-      const limiteMaximo = Math.round(venda2025 * (1 + MAX_VARIACAO));
-      if (planoOriginal > limiteMaximo) {
-        return limiteMaximo;
-      }
-      return planoOriginal;
-    });
+  // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
+  const familiasComPlano = useMemo(
+    () => familiasFiltradas.filter(familia => soma(familia.plano2026) > 0),
+    [familiasFiltradas]
+  );
+
+  const familiasSemPlano = useMemo(
+    () => familiasFiltradas.filter(familia => soma(familia.plano2026) === 0 && soma(familia.vendas2025) > 0),
+    [familiasFiltradas]
+  );
+
+  const familias = familiasComPlano.map(familia => ({
+    ...familia,
+    plano2026Original: familia.plano2026,
+    plano2026: familia.plano2026  // Sem ajuste
+  }));
+
+  const baseSemPlano = useMemo(() => {
+    const mostrarBaseSemPlano =
+      (!filters.familia || filters.familia === 'TODAS') &&
+      (!filters.linha || filters.linha === 'TODAS') &&
+      familiasSemPlano.length > 0;
+
+    if (!mostrarBaseSemPlano) {
+      return null;
+    }
+
+    const vendaPlanejadaTotal = familiasOriginal
+      .filter(familia => soma(familia.plano2026) > 0)
+      .reduce((total, familia) => total + soma(familia.vendas2025), 0);
+
+    const vendaSemPlanoOficial = Math.max((kpiData.venda2025 || 0) - vendaPlanejadaTotal, 0);
+    if (vendaSemPlanoOficial <= 0) {
+      return null;
+    }
+
+    const vendasSemPlanoPorLoja = lojas.map((_, lojaIdx) =>
+      familiasOriginal
+        .filter(familia => soma(familia.plano2026) === 0 && soma(familia.vendas2025) > 0)
+        .reduce((total, familia) => total + (familia.vendas2025[lojaIdx] || 0), 0)
+    );
+
+    const totalSemPlanoAtual = soma(vendasSemPlanoPorLoja);
+    if (totalSemPlanoAtual <= 0) {
+      return null;
+    }
+
+    const valoresExatos = vendasSemPlanoPorLoja.map(valor => (valor / totalSemPlanoAtual) * vendaSemPlanoOficial);
+    const vendas2025 = valoresExatos.map(Math.floor);
+    let falta = vendaSemPlanoOficial - soma(vendas2025);
+    const restos = valoresExatos
+      .map((valor, idx) => ({ idx, resto: valor - Math.floor(valor) }))
+      .sort((a, b) => b.resto - a.resto);
+
+    for (let i = 0; i < falta && i < restos.length; i++) {
+      vendas2025[restos[i].idx] += 1;
+    }
 
     return {
-      ...familia,
-      plano2026Original: familia.plano2026,
-      plano2026: plano2026Ajustado
+      nome: 'BASE 2025 SEM PLANO 2026',
+      vendas2025,
+      plano2026: lojas.map(() => 0),
+      familias: familiasSemPlano.map(familia => familia.nome).join(', '),
+      isBaseSemPlano: true
     };
-  });
+  }, [familiasOriginal, familiasSemPlano, filters.familia, filters.linha, lojas]);
 
   // Buscar SKUs de uma família agrupados por ref > cor > tam
   const getSkusHierarquia = (familiaName) => {
@@ -142,7 +191,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
 
   // Calcular totais gerais (apenas para lojas filtradas)
   const totalGeral = lojasIndices.map((lojaIdx) => ({
-    total2025: familias.reduce((sum, f) => sum + (f.vendas2025[lojaIdx] || 0), 0),
+    total2025: familias.reduce((sum, f) => sum + (f.vendas2025[lojaIdx] || 0), 0) + (baseSemPlano?.vendas2025[lojaIdx] || 0),
     total2026: familias.reduce((sum, f) => sum + (f.plano2026[lojaIdx] || 0), 0)
   }));
 
@@ -158,8 +207,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
     const val2026Original = familia.plano2026Original?.[lojaIdx] || val2026;
     const percentual = val2025 > 0 ? ((val2026 - val2025) / val2025) * 100 : 0;
     const diferenca = val2026 - val2025;
-    const limiteMaximo = Math.round(val2025 * (1 + MAX_VARIACAO));
-    const foiAjustado = val2026Original > limiteMaximo;
+    const foiAjustado = false;
 
     const skusDetalhados = planoEdicaoLimitadaData
       .filter(item => item.familia === familia.nome && item.colecao === 'VERAO 27')
@@ -181,7 +229,6 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
       val2026Original,
       percentual,
       diferenca,
-      limiteMaximo,
       foiAjustado,
       skusDetalhados,
       totalPlanoDetalhado
@@ -194,9 +241,8 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
   const renderValorCell = (familia, lojaIdx, bgClass = '') => {
     const val2025 = familia.vendas2025[lojaIdx];
     const val2026 = familia.plano2026[lojaIdx];
-    const val2026Original = familia.plano2026Original?.[lojaIdx] || val2026;
     const percentual = val2025 > 0 ? ((val2026 - val2025) / val2025) * 100 : 0;
-    const foiAjustado = val2026Original > Math.round(val2025 * (1 + MAX_VARIACAO));
+    const foiAjustado = false;
 
     return (
       <>
@@ -234,7 +280,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => exportComparativoLojas(familiasFiltradas, lojasFiltradas, 'comparativo_familia_lojas')}
+              onClick={() => exportComparativoLojas([...familias, baseSemPlano].filter(Boolean), lojasFiltradas, 'comparativo_familia_lojas', lojas)}
               className="flex items-center gap-1 px-2 py-1 bg-white/20 hover:bg-white/30 text-white text-[11px] rounded transition-colors border border-white/30"
               title="Exportar resumo por família"
             >
@@ -257,7 +303,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               {isAllExpanded ? 'Recolher' : 'Expandir'}
             </button>
             <span className="text-[10px] text-white/90 bg-white/20 px-2 py-1 rounded border border-white/30">
-              Aumento máx: +10%
+              Plano Cairo: sem redução
             </span>
           </div>
         </div>
@@ -452,6 +498,39 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               );
             })}
 
+            {baseSemPlano && (
+              <tr className="bg-amber-50 font-semibold">
+                <td className="px-3 py-2 text-amber-900 sticky left-0 bg-amber-50 z-10 min-w-[200px]">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold uppercase">{baseSemPlano.nome}</span>
+                    <span className="text-[10px] text-amber-700 font-normal">{baseSemPlano.familias}</span>
+                  </div>
+                </td>
+                {lojasIndices.map((lojaIdx, idx) => (
+                  <React.Fragment key={idx}>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-xs text-amber-800 border-l border-amber-100">
+                      {fmt(baseSemPlano.vendas2025[lojaIdx])}
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-xs text-gray-400">
+                      —
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-xs text-gray-400">
+                      —
+                    </td>
+                  </React.Fragment>
+                ))}
+                <td className="px-2 py-2 text-right font-mono tabular-nums text-xs font-bold text-amber-900 border-l-2 border-amber-200 bg-amber-100">
+                  {fmt(lojasIndices.reduce((total, lojaIdx) => total + (baseSemPlano.vendas2025[lojaIdx] || 0), 0))}
+                </td>
+                <td className="px-2 py-2 text-right font-mono tabular-nums text-xs text-gray-400 bg-amber-100">
+                  —
+                </td>
+                <td className="px-2 py-2 text-right font-mono tabular-nums text-xs text-gray-400 bg-amber-100">
+                  —
+                </td>
+              </tr>
+            )}
+
             {/* Total Geral */}
             <tr className="bg-[#585858] font-bold sticky bottom-0">
               <td className="px-3 py-2 text-white sticky left-0 bg-[#585858] z-10 uppercase tracking-wide text-[11px]">
@@ -494,7 +573,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-slate-100 border border-slate-300 rounded-sm"></span> Referência</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-violet-100 border border-violet-300 rounded-sm"></span> Cor</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-teal-100 border border-teal-300 rounded-sm"></span> SKU</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm"></span><span className="text-amber-700 font-semibold">*</span> Ajustado</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm"></span> Ajuste +10% desativado</span>
       </div>
 
       {/* Modal de Memória de Cálculo */}
@@ -569,12 +648,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               {/* Alerta de Limite */}
               {modalData.foiAjustado && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-                  <p className="text-amber-800 text-xs font-semibold">Aumento máx. 10% aplicado</p>
+                  <p className="text-amber-800 text-xs font-semibold">Ajuste de +10% desativado</p>
                   <p className="text-amber-700 text-[11px] mt-1">
                     Plano original: <strong>{fmt(modalData.val2026Original)}</strong> → Ajustado: <strong>{fmt(modalData.val2026)}</strong>
                   </p>
                   <p className="text-amber-600 text-[10px] mt-1">
-                    Limite permitido: {fmt(modalData.limiteMaximo)} un ({fmt(modalData.val2025)} × 1.10)
+                    O plano definido pelo Cairo é exibido sem redução automática.
                   </p>
                 </div>
               )}
