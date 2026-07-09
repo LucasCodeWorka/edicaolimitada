@@ -28,16 +28,16 @@ export const exportComparativoLojas = (familias, lojas, filename = 'comparativo_
 
     lojas.forEach((loja, idx) => {
       const origemIdx = lojaIndices[idx];
-      row[`${loja} 2025`] = origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0;
+      row[`${loja} Base`] = origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0;
       row[`${loja} 2026`] = origemIdx >= 0 ? fam.plano2026[origemIdx] || 0 : 0;
     });
 
-    row['Total 2025'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0), 0);
+    row['Total Base'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.vendas2025[origemIdx] || 0 : 0), 0);
     row['Total 2026'] = lojaIndices.reduce((sum, origemIdx) => sum + (origemIdx >= 0 ? fam.plano2026[origemIdx] || 0 : 0), 0);
     row['Var %'] = fam.isBaseSemPlano
       ? '-'
-      : row['Total 2025'] > 0
-      ? ((row['Total 2026'] - row['Total 2025']) / row['Total 2025'] * 100).toFixed(1) + '%'
+      : row['Total Base'] > 0
+      ? ((row['Total 2026'] - row['Total Base']) / row['Total Base'] * 100).toFixed(1) + '%'
       : '-';
 
     data.push(row);

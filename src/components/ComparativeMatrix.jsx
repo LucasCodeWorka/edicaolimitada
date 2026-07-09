@@ -26,6 +26,28 @@ const fmt = (v, dec = 0) => Number(v || 0).toLocaleString('pt-BR', {
 
 const soma = (valores = []) => valores.reduce((acc, valor) => acc + (Number(valor) || 0), 0);
 
+const distribuirPorReferencia = (total, referencia = []) => {
+  const totalInteiro = Math.round(Number(total) || 0);
+  const totalReferencia = soma(referencia);
+
+  if (totalInteiro <= 0 || totalReferencia <= 0) {
+    return referencia.map(() => 0);
+  }
+
+  const exatos = referencia.map(valor => (totalInteiro * (Number(valor) || 0)) / totalReferencia);
+  const valores = exatos.map(Math.floor);
+  let falta = totalInteiro - soma(valores);
+  const restos = exatos
+    .map((valor, idx) => ({ idx, resto: valor - Math.floor(valor) }))
+    .sort((a, b) => b.resto - a.resto);
+
+  for (let i = 0; i < falta && i < restos.length; i++) {
+    valores[restos[i].idx] += 1;
+  }
+
+  return valores;
+};
+
 const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
   const { lojas, familias: familiasOriginal } = data;
   const [expanded, setExpanded] = useState({});
@@ -88,72 +110,29 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
       }, {});
   }, []);
 
+  const fatorCrescimentoPlano = kpiData.venda2025 > 0
+    ? kpiData.plano2026 / kpiData.venda2025
+    : 1;
+
   // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
   const familiasComPlano = useMemo(
     () => familiasFiltradas.filter(familia => soma(familia.plano2026) > 0),
     [familiasFiltradas]
   );
 
-  const familiasSemPlano = useMemo(
-    () => familiasFiltradas.filter(familia => soma(familia.plano2026) === 0 && soma(familia.vendas2025) > 0),
-    [familiasFiltradas]
-  );
-
   const familias = familiasComPlano.map(familia => ({
     ...familia,
+    vendas2025: distribuirPorReferencia(
+      (planoSkuPorFamilia[familia.nome] || soma(familia.plano2026)) / fatorCrescimentoPlano,
+      familia.plano2026
+    ),
     plano2026Original: familia.plano2026,
     plano2026: familia.plano2026  // Sem ajuste
   }));
 
-  const baseSemPlano = useMemo(() => {
-    const mostrarBaseSemPlano =
-      (!filters.familia || filters.familia === 'TODAS') &&
-      (!filters.linha || filters.linha === 'TODAS') &&
-      familiasSemPlano.length > 0;
-
-    if (!mostrarBaseSemPlano) {
-      return null;
-    }
-
-    const vendaPlanejadaTotal = familiasOriginal
-      .filter(familia => soma(familia.plano2026) > 0)
-      .reduce((total, familia) => total + soma(familia.vendas2025), 0);
-
-    const vendaSemPlanoOficial = Math.max((kpiData.venda2025 || 0) - vendaPlanejadaTotal, 0);
-    if (vendaSemPlanoOficial <= 0) {
-      return null;
-    }
-
-    const vendasSemPlanoPorLoja = lojas.map((_, lojaIdx) =>
-      familiasOriginal
-        .filter(familia => soma(familia.plano2026) === 0 && soma(familia.vendas2025) > 0)
-        .reduce((total, familia) => total + (familia.vendas2025[lojaIdx] || 0), 0)
-    );
-
-    const totalSemPlanoAtual = soma(vendasSemPlanoPorLoja);
-    if (totalSemPlanoAtual <= 0) {
-      return null;
-    }
-
-    const valoresExatos = vendasSemPlanoPorLoja.map(valor => (valor / totalSemPlanoAtual) * vendaSemPlanoOficial);
-    const vendas2025 = valoresExatos.map(Math.floor);
-    let falta = vendaSemPlanoOficial - soma(vendas2025);
-    const restos = valoresExatos
-      .map((valor, idx) => ({ idx, resto: valor - Math.floor(valor) }))
-      .sort((a, b) => b.resto - a.resto);
-
-    for (let i = 0; i < falta && i < restos.length; i++) {
-      vendas2025[restos[i].idx] += 1;
-    }
-
-    return {
-      nome: 'BASE 2025 SEM PLANO 2026',
-      vendas2025,
-      plano2026: lojas.map(() => 0),
-      familias: familiasSemPlano.map(familia => familia.nome).join(', '),
-      isBaseSemPlano: true
-    };
-  }, [familiasOriginal, familiasSemPlano, filters.familia, filters.linha, lojas]);
+  // Esta matriz compara o plano contra a base de calculo usada para chegar nele.
+  // Familias com venda historica, mas sem plano 2026, ficam fora do percentual.
+  const baseSemPlano = null;
 
   // Buscar SKUs de uma família agrupados por ref > cor > tam
   const getSkusHierarquia = (familiaName) => {
@@ -244,6 +223,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
       percentual,
       diferenca,
       foiAjustado,
+      fatorCrescimentoPlano,
       skusDetalhados,
       totalPlanoDetalhado
     });
@@ -290,7 +270,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
             <h3 className="text-white text-sm font-bold uppercase tracking-wide">
               Comparativo Família × Lojas
             </h3>
-            <p className="text-white/70 text-[10px] mt-0.5">2025 vs 2026 | Clique no % para memória de cálculo</p>
+            <p className="text-white/70 text-[10px] mt-0.5">Base de cálculo vs Plano 2026 | Clique no % para memória de cálculo</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -317,7 +297,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               {isAllExpanded ? 'Recolher' : 'Expandir'}
             </button>
             <span className="text-[10px] text-white/90 bg-white/20 px-2 py-1 rounded border border-white/30">
-              Plano Cairo: sem redução
+              Base comparável
             </span>
           </div>
         </div>
@@ -344,12 +324,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               <th className="px-3 py-1.5 text-left text-[10px] text-gray-500 sticky left-0 bg-gray-50 z-30 border-b border-gray-200"></th>
               {lojasFiltradas.map((_, idx) => (
                 <React.Fragment key={idx}>
-                  <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 border-l border-gray-200 border-b border-gray-200">2025</th>
+                  <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 border-l border-gray-200 border-b border-gray-200">Base</th>
                   <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 border-b border-gray-200">2026</th>
                   <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 border-b border-gray-200">%</th>
                 </React.Fragment>
               ))}
-              <th className="px-2 py-1.5 text-right text-[10px] text-gray-600 font-medium border-l-2 border-gray-300 bg-gray-200 border-b border-gray-200">2025</th>
+              <th className="px-2 py-1.5 text-right text-[10px] text-gray-600 font-medium border-l-2 border-gray-300 bg-gray-200 border-b border-gray-200">Base</th>
               <th className="px-2 py-1.5 text-right text-[10px] text-gray-600 font-medium bg-gray-200 border-b border-gray-200">2026</th>
               <th className="px-2 py-1.5 text-right text-[10px] text-gray-600 font-medium bg-gray-200 border-b border-gray-200">%</th>
             </tr>
@@ -589,7 +569,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-slate-100 border border-slate-300 rounded-sm"></span> Referência</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-violet-100 border border-violet-300 rounded-sm"></span> Cor</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-teal-100 border border-teal-300 rounded-sm"></span> SKU</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm"></span> Ajuste +10% desativado</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded-sm"></span> Base = plano dividido pelo fator global</span>
       </div>
 
       {/* Modal de Memória de Cálculo */}
@@ -624,7 +604,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               {/* Indicadores */}
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                  <div className="text-[11px] text-gray-500">Venda 2025</div>
+                  <div className="text-[11px] text-gray-500">Base cálculo</div>
                   <div className="text-lg font-bold font-mono text-gray-900">{fmt(modalData.val2025)}</div>
                 </div>
                 <div className={`rounded-lg border px-3 py-2 ${modalData.foiAjustado ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
@@ -639,7 +619,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
                   )}
                 </div>
                 <div className={`rounded-lg border px-3 py-2 ${modalData.percentual >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
-                  <div className={`text-[11px] ${modalData.percentual >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Aumento</div>
+                  <div className={`text-[11px] ${modalData.percentual >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Crescimento</div>
                   <div className={`text-lg font-bold font-mono ${modalData.percentual >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {modalData.percentual > 0 ? '+' : ''}{modalData.percentual.toFixed(1)}%
                   </div>
@@ -653,12 +633,25 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               <div className="bg-gray-100 rounded-lg p-3 mb-4 border border-gray-200">
                 <p className="text-[11px] text-gray-600 font-medium mb-1">Fórmula:</p>
                 <div className="bg-white rounded p-2 font-mono text-xs border border-gray-200">
-                  <p className="text-gray-700">Aumento = ((Plano - Venda) / Venda) × 100</p>
+                  <p className="text-gray-700">Crescimento = ((Plano - Base) / Base) × 100</p>
                   <p className="text-gray-500 mt-1">= (({modalData.val2026} - {modalData.val2025}) / {modalData.val2025}) × 100</p>
                   <p className={`font-semibold mt-1 ${modalData.percentual >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                     = {modalData.percentual > 0 ? '+' : ''}{modalData.percentual.toFixed(2)}%
                   </p>
                 </div>
+              </div>
+
+              <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+                <p className="text-blue-900 text-xs font-semibold">Como esta base foi montada</p>
+                <p className="text-blue-800 text-[11px] mt-1">
+                  Esta matriz não usa mais a venda histórica bruta da família como comparação, porque isso misturava famílias sem plano
+                  e classificações diferentes. A base exibida é a base comparável do plano: <strong>Plano da célula dividido pelo fator global</strong>.
+                </p>
+                <p className="text-blue-700 text-[11px] mt-1">
+                  Fator global = KPI Plano {fmt(kpiData.plano2026)} / KPI Venda {fmt(kpiData.venda2025)}
+                  {' '}= {modalData.fatorCrescimentoPlano.toFixed(4)}. Portanto, esta célula usa base {fmt(modalData.val2025)}
+                  {' '}para chegar ao plano {fmt(modalData.val2026)}.
+                </p>
               </div>
 
               {/* Alerta de Limite */}
