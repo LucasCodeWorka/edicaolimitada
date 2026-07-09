@@ -117,10 +117,52 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
   // Lojas excluídas para famílias PLUS
   const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'ECOMMERCE'];
+  const FAMILIAS_CONFORT_DOIS_MESES = ['KISS ME', 'KISS ME PLUS'];
+  const MESES_CONFORT = ['JULHO', 'AGOSTO'];
 
   const ehFamiliaTamanhoMaior = (familia) => {
     const familiaUpper = String(familia).toUpperCase().trim();
     return familiaUpper.includes('PLUS');
+  };
+
+  const ehConfortDoisMeses = (familia) => {
+    const familiaUpper = String(familia).toUpperCase().trim();
+    return FAMILIAS_CONFORT_DOIS_MESES.includes(familiaUpper);
+  };
+
+  const dividirEquivalenteEmDoisMeses = (quantidade) => {
+    const total = Number(quantidade) || 0;
+    const primeiroMes = Math.ceil(total / 2);
+    return [primeiroMes, total - primeiroMes];
+  };
+
+  const distribuirPorReferencia = (total, referenciaPorLoja) => {
+    const totalInteiro = Math.round(Number(total) || 0);
+    const totalReferencia = Object.values(referenciaPorLoja).reduce((s, v) => s + (Number(v) || 0), 0);
+    const resultado = {};
+
+    if (totalInteiro <= 0 || totalReferencia <= 0) {
+      lojasPCP.forEach(loja => {
+        resultado[loja] = 0;
+      });
+      return resultado;
+    }
+
+    const restos = [];
+    lojasPCP.forEach(loja => {
+      const valorExato = totalInteiro * ((Number(referenciaPorLoja[loja]) || 0) / totalReferencia);
+      const valorFloor = Math.floor(valorExato);
+      resultado[loja] = valorFloor;
+      restos.push({ loja, resto: valorExato - valorFloor });
+    });
+
+    let falta = totalInteiro - Object.values(resultado).reduce((s, v) => s + v, 0);
+    restos.sort((a, b) => b.resto - a.resto);
+    for (let i = 0; i < falta && i < restos.length; i++) {
+      resultado[restos[i].loja] += 1;
+    }
+
+    return resultado;
   };
 
   const lojaExcluidaTamanhoMaior = (loja) => {
@@ -152,19 +194,45 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
   // Filtrar apenas VERAO 27
   const skusVerao27 = planoData.filter(item => item.colecao === 'VERAO 27');
+  const planoConfortDoisMesesPorSku = {};
+  const skusConfort = skusVerao27
+    .map((sku, idx) => ({ sku, idx }))
+    .filter(item => ehConfortDoisMeses(item.sku.familia));
+
+  const totalConfortOriginal = skusConfort.reduce((sum, item) => sum + (Number(item.sku.plano) || 0), 0);
+  const totalConfortDoisMeses = Math.round(totalConfortOriginal * (2 / 6));
+  const valoresConfort = skusConfort.map(item => {
+    const valorExato = totalConfortOriginal > 0
+      ? ((Number(item.sku.plano) || 0) / totalConfortOriginal) * totalConfortDoisMeses
+      : 0;
+
+    return {
+      idx: item.idx,
+      valor: Math.floor(valorExato),
+      resto: valorExato - Math.floor(valorExato),
+    };
+  });
+
+  let faltaConfort = totalConfortDoisMeses - valoresConfort.reduce((sum, item) => sum + item.valor, 0);
+  valoresConfort.sort((a, b) => b.resto - a.resto);
+  for (let i = 0; i < faltaConfort && i < valoresConfort.length; i++) {
+    valoresConfort[i].valor += 1;
+  }
+  valoresConfort.forEach(item => {
+    planoConfortDoisMesesPorSku[item.idx] = item.valor;
+  });
 
   const data = [];
 
-  skusVerao27.forEach(sku => {
+  skusVerao27.forEach((sku, skuIdx) => {
     const isTamMaior = ehFamiliaTamanhoMaior(sku.familia);
 
-    const row = {
+    const rowBase = {
       'Família': sku.familia,
       'Referência': sku.ref,
       'Cor': sku.cor,
       'Tamanho': sku.tam,
       'Grupo': sku.grupo || '-',
-      'Plano Total': sku.plano,
     };
 
     // Para PLUS, recalcular participação excluindo lojas proibidas
@@ -215,12 +283,40 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
       distribuicao[restos[i].loja] += 1;
     }
 
-    // Adicionar coluna para cada loja PCP
-    lojasPCP.forEach(loja => {
-      row[loja] = distribuicao[loja];
-    });
+    if (ehConfortDoisMeses(sku.familia)) {
+      const planoDoisMeses = planoConfortDoisMesesPorSku[skuIdx] || 0;
+      const totaisPorMes = dividirEquivalenteEmDoisMeses(planoDoisMeses);
 
-    data.push(row);
+      MESES_CONFORT.forEach((mes, mesIdx) => {
+        const rowMes = {
+          ...rowBase,
+          'Mês Envio': mes,
+        };
+
+        const distribuicaoMes = distribuirPorReferencia(totaisPorMes[mesIdx], distribuicao);
+        let totalMes = 0;
+        lojasPCP.forEach(loja => {
+          rowMes[loja] = distribuicaoMes[loja];
+          totalMes += rowMes[loja];
+        });
+
+        rowMes['Plano Total'] = totalMes;
+        data.push(rowMes);
+      });
+    } else {
+      const row = {
+        ...rowBase,
+        'Mês Envio': 'UNICO',
+        'Plano Total': sku.plano,
+      };
+
+      // Adicionar coluna para cada loja PCP
+      lojasPCP.forEach(loja => {
+        row[loja] = distribuicao[loja];
+      });
+
+      data.push(row);
+    }
   });
 
   // Ordenar por Família > Referência > Cor > Tamanho
@@ -228,7 +324,8 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     if (a['Família'] !== b['Família']) return a['Família'].localeCompare(b['Família']);
     if (a['Referência'] !== b['Referência']) return a['Referência'].localeCompare(b['Referência']);
     if (a['Cor'] !== b['Cor']) return a['Cor'].localeCompare(b['Cor']);
-    return a['Tamanho'].localeCompare(b['Tamanho']);
+    if (a['Tamanho'] !== b['Tamanho']) return a['Tamanho'].localeCompare(b['Tamanho']);
+    return a['Mês Envio'].localeCompare(b['Mês Envio']);
   });
 
   exportToExcel(data, filename, 'Plano PCP');
