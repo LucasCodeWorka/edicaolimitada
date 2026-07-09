@@ -76,6 +76,18 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
     return lojasFiltradas.map(loja => lojas.indexOf(loja));
   }, [lojas, lojasFiltradas]);
 
+  const isLojaFiltrada = lojasFiltradas.length !== lojas.length;
+
+  const planoSkuPorFamilia = useMemo(() => {
+    return planoEdicaoLimitadaData
+      .filter(item => item.colecao === 'VERAO 27')
+      .reduce((acc, item) => {
+        const familia = item.familia || 'OUTROS';
+        acc[familia] = (acc[familia] || 0) + (item.plano || 0);
+        return acc;
+      }, {});
+  }, []);
+
   // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
   const familiasComPlano = useMemo(
     () => familiasFiltradas.filter(familia => soma(familia.plano2026) > 0),
@@ -196,7 +208,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
   }));
 
   const totalGeralSum2025 = totalGeral.reduce((s, t) => s + t.total2025, 0);
-  const totalGeralSum2026 = totalGeral.reduce((s, t) => s + t.total2026, 0);
+  const totalGeralSum2026 = isLojaFiltrada
+    ? totalGeral.reduce((s, t) => s + t.total2026, 0)
+    : familias.reduce((sum, familia) => sum + (planoSkuPorFamilia[familia.nome] || 0), 0);
 
   // Abrir modal de memória de cálculo
   const openModal = (familia, lojaIdx, e) => {
@@ -346,7 +360,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
               const isFamExpanded = expanded[famKey];
               // Calcular totais apenas para lojas filtradas
               const totalFam2025 = lojasIndices.reduce((s, idx) => s + (familia.vendas2025[idx] || 0), 0);
-              const totalFam2026 = lojasIndices.reduce((s, idx) => s + (familia.plano2026[idx] || 0), 0);
+              const totalFam2026 = isLojaFiltrada
+                ? lojasIndices.reduce((s, idx) => s + (familia.plano2026[idx] || 0), 0)
+                : (planoSkuPorFamilia[familia.nome] || 0);
               const totalFamPct = totalFam2025 > 0 ? ((totalFam2026 - totalFam2025) / totalFam2025) * 100 : 0;
               const skusHierarquia = isFamExpanded ? getSkusHierarquia(familia.nome) : {};
               const rowBg = famIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
