@@ -8,7 +8,12 @@ import ComparativeMatrix from './components/ComparativeMatrix';
 import RulesModal from './components/RulesModal';
 import FamilyMappingTable from './components/FamilyMappingTable';
 import AuditTable from './components/AuditTable';
-import { loadDashboardData, staticDashboardData } from './services/dashboardData';
+import {
+  getDashboardApiBaseUrl,
+  loadDashboardData,
+  refreshDashboardCache,
+  staticDashboardData
+} from './services/dashboardData';
 
 // Mapeamento de Família para Linha (baseado nos dados do CSV)
 const FAMILIA_LINHA_MAP = {
@@ -44,6 +49,8 @@ function App() {
   const [dataSource, setDataSource] = useState('arquivo');
   const [dataError, setDataError] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isRefreshingCache, setIsRefreshingCache] = useState(false);
+  const [cacheMessage, setCacheMessage] = useState('');
   const [filters, setFilters] = useState({
     empresa: 'TODAS',
     familia: 'TODAS',
@@ -54,6 +61,8 @@ function App() {
     mes: 'TODOS',
     referencia: 'TODAS'
   });
+
+  const canRefreshCache = Boolean(getDashboardApiBaseUrl());
 
   useEffect(() => {
     let isMounted = true;
@@ -88,6 +97,25 @@ function App() {
       isMounted = false;
     };
   }, []);
+
+  const handleRefreshCache = async () => {
+    setIsRefreshingCache(true);
+    setDataError('');
+    setCacheMessage('');
+
+    try {
+      const result = await refreshDashboardCache();
+      const loaded = await loadDashboardData();
+
+      setDashboardData(loaded.data);
+      setDataSource(loaded.source);
+      setCacheMessage(`Cache atualizado: ${result.vendasRows || 0} vendas e ${result.produtosRows || 0} produtos.`);
+    } catch (error) {
+      setDataError(error.message || 'Nao foi possivel atualizar o cache do banco.');
+    } finally {
+      setIsRefreshingCache(false);
+    }
+  };
 
   const {
     filterOptions = {},
@@ -334,12 +362,21 @@ function App() {
               </svg>
               Analisar Regras
             </button>
+            {canRefreshCache && (
+              <button
+                onClick={handleRefreshCache}
+                disabled={isRefreshingCache}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-white text-[#6B8E7B] border border-white hover:bg-white/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isRefreshingCache ? 'Atualizando...' : 'Atualizar Banco'}
+              </button>
+            )}
           </div>
         </header>
 
         {/* Main */}
         <main className="p-6 space-y-6">
-          {(isLoadingData || dataSource === 'banco' || dataSource === 'api-arquivo' || dataError) && (
+          {(isLoadingData || dataSource === 'banco' || dataSource === 'api-arquivo' || dataError || cacheMessage) && (
             <div className={`border rounded-lg px-4 py-2 text-xs flex items-center justify-between ${
               dataError
                 ? 'bg-amber-50 border-amber-200 text-amber-800'
@@ -350,6 +387,7 @@ function App() {
                 {!isLoadingData && dataSource === 'banco' && 'Dados carregados do banco.'}
                 {!isLoadingData && dataSource === 'api-arquivo' && 'Dados carregados pela API, ainda usando o arquivo local como fonte do plano.'}
                 {!isLoadingData && dataError && `${dataError} Usando arquivo local como fallback.`}
+                {!isLoadingData && !dataError && cacheMessage && cacheMessage}
               </span>
             </div>
           )}
@@ -470,7 +508,7 @@ function App() {
           <FamilyMappingTable data={mapeamentoFamiliasData} filters={filters} familiaLinhaMap={FAMILIA_LINHA_MAP} />
 
           {/* Matriz Comparativa */}
-          <ComparativeMatrix data={comparativoLojasData} filters={filters} familiaLinhaMap={FAMILIA_LINHA_MAP} />
+          <ComparativeMatrix data={comparativoLojasData} filters={filters} familiaLinhaMap={FAMILIA_LINHA_MAP} planoEdicaoLimitadaData={planoEdicaoLimitadaData} />
 
           {/* Tabela de Conferência / Memória de Cálculo */}
           <AuditTable data={planoEdicaoLimitadaData} filters={filters} />

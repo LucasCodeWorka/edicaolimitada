@@ -66,6 +66,27 @@ const queries = {
       )
     order by table_name
   `,
+  procurarVendasQtd: `
+    select schemaname as table_schema, matviewname as table_name, 'materialized_view' as tipo
+    from pg_matviews
+    where matviewname ilike '%vendas%qtd%'
+    union all
+    select table_schema, table_name, table_type as tipo
+    from information_schema.tables
+    where table_name ilike '%vendas%qtd%'
+    order by table_name
+  `,
+  mvVendasQtdInfo: `
+    select min(data) as min_data,
+           max(data) as max_data,
+           count(*)::int as linhas
+    from public.mv_vendas_qtd
+  `,
+  mvVendasQtdSample: `
+    select *
+    from public.mv_vendas_qtd
+    limit 10
+  `,
   empresasResumo: `
     select idempresa::text, empresa, suplojas, area, cidade, estado
     from public."dEMPRESA"
@@ -98,6 +119,34 @@ const queries = {
      and trim(cl.cd_classificacao) = trim(pc.cd_classificacao)
     where cl.ds_classificacao ilike '%EDICAO%'
     limit 20
+  `,
+  vendaVerao26EdicaoLimitada2Sem: `
+    with produtos as (
+      select pc21.cd_produto
+      from public.prd_produtoclas pc21
+      join public.prd_classificacao c21
+        on c21.cd_tipoclas = pc21.cd_tipoclas
+       and trim(c21.cd_classificacao) = trim(pc21.cd_classificacao)
+      join public.prd_produtoclas pc802
+        on pc802.cd_produto = pc21.cd_produto
+       and pc802.cd_tipoclas = 802
+      join public.prd_classificacao c802
+        on c802.cd_tipoclas = pc802.cd_tipoclas
+       and trim(c802.cd_classificacao) = trim(pc802.cd_classificacao)
+      where pc21.cd_tipoclas = 21
+        and c21.ds_classificacao = 'VERAO 26'
+        and c802.ds_classificacao = 'EDICAO LIMITADA'
+    )
+    select 'VERAO 26' as colecao,
+           'EDICAO LIMITADA' as continuidade,
+           count(distinct v.idproduto)::int as produtos_com_venda,
+           count(*)::int as linhas_venda,
+           sum(v.qt_liquida)::float as venda
+    from public.vr_vendas_qtd v
+    join produtos p on p.cd_produto = v.idproduto
+    where v.idempresa <> 1
+      and v.data >= date '2025-07-01'
+      and v.data < date '2026-01-01'
   `
 };
 

@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, X, Expand, Minimize2, Calculator, Download } from 'lucide-react';
-import { planoEdicaoLimitadaData } from '../../data';
 import { exportComparativoLojas, exportComparativoDetalhado } from '../utils/exportExcel';
 
 // Lojas excluídas para famílias de tamanhos maiores (PLUS)
@@ -33,7 +32,7 @@ const getFamiliaDisplayName = (familia) => {
   return familia;
 };
 
-const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {} }) => {
+const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdicaoLimitadaData = [] }) => {
   const { lojas, familias: familiasOriginal } = data;
   const [expanded, setExpanded] = useState({});
   const [modalData, setModalData] = useState(null);

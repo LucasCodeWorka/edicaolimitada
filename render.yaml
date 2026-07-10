@@ -1,10 +1,14 @@
 services:
   - type: web
     name: plano-edicao-limitada
-    env: static
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    startCommand: node server/index.js
     pullRequestPreviewsEnabled: true
     envVars:
       - key: NODE_VERSION
         value: 18
+      - key: VITE_DASHBOARD_DATA_SOURCE
+        value: db
+      - key: DB_SSL
+        value: true

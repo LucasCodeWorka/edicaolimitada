@@ -5,6 +5,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  getCachedPlanningRows,
+  getLatestCacheRun,
+  refreshPlanningCache
+} from './cacheRepository.js';
+import { buildDashboardFromSales } from './dashboardBuilder.js';
+import {
   getClassificationTypes,
   getCompanies,
   getHealth,
@@ -14,9 +20,11 @@ import {
 dotenv.config();
 
 const app = express();
-const port = Number(process.env.API_PORT || 3001);
+const port = Number(process.env.PORT || process.env.API_PORT || 3001);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
+const distDir = path.join(rootDir, 'dist');
+const dashboardCache = new Map();
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true
@@ -60,18 +68,70 @@ app.get('/api/db/sales', async (req, res) => {
   }
 });
 
-app.get('/api/dashboard-data', (_req, res) => {
+app.get('/api/cache/status', async (_req, res) => {
+  try {
+    res.json(await getLatestCacheRun());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cache/refresh', async (req, res) => {
+  try {
+    const startDate = req.body?.startDate || '2025-07-01';
+    const endDate = req.body?.endDate || '2025-12-31';
+
+    dashboardCache.clear();
+    res.json(await refreshPlanningCache({ startDate, endDate }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/dashboard-data', async (req, res) => {
+  if (req.query.source === 'db') {
+    try {
+      const cacheKey = 'verao26-edicao-limitada-2025s2';
+
+      if (!dashboardCache.has(cacheKey) || req.query.refresh === '1') {
+        const rows = await getCachedPlanningRows();
+
+        if (rows.length === 0) {
+          res.status(409).json({
+            error: 'Cache do banco ainda nao foi carregado. Execute POST /api/cache/refresh primeiro.'
+          });
+          return;
+        }
+
+        dashboardCache.set(cacheKey, buildDashboardFromSales(rows));
+      }
+
+      res.json(dashboardCache.get(cacheKey));
+      return;
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+  }
+
   const filePath = path.join(rootDir, 'dados_reais.json');
   const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
   data.meta = {
     ...(data.meta || {}),
     origem: 'arquivo-local',
-    observacao: 'Endpoint mantido como contrato do frontend. Vendas usam vr_vendas_qtd, produtos usam vr_prd_prdgrade e classificacoes usam prd_produtoclas/prd_classificacao; o plano de edicao limitada ainda vem do arquivo local.'
+    observacao: 'Use /api/dashboard-data?source=db para gerar a primeira versao pelo banco usando mv_vendas_qtd.'
   };
 
   res.json(data);
 });
+
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.get('/{*splat}', (_req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
 
 app.listen(port, () => {
   console.log(`API do dashboard em http://localhost:${port}`);

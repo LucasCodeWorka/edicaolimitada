@@ -1,6 +1,5 @@
 # Dependencies
 node_modules
-package-lock.json
 yarn.lock
 
 # Build
@@ -26,3 +25,13 @@ npm-debug.log*
 Thumbs.db
 nul
 dproduto.xlsx
+
+# Temporary analysis/export files
+CLAUDE_HANDOFF.md
+api_check*.json
+temp_*.json
+check_*.cjs
+query_*.cjs
+export_pcp.cjs
+plano_pcp_skus.csv
+plano_por_loja.csv
