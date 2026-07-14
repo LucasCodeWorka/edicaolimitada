@@ -92,7 +92,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
         acc[familia] = (acc[familia] || 0) + (item.plano || 0);
         return acc;
       }, {});
-  }, []);
+  }, [planoEdicaoLimitadaData]);
 
   // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
   const familiasComPlano = useMemo(
@@ -109,6 +109,59 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
   // Esta matriz compara o plano contra a base propria de cada familia/loja.
   // Familias com venda historica, mas sem plano 2026, ficam fora desta comparacao.
   const baseSemPlano = null;
+
+  // Calcular participação de cada loja na família (baseado no plano2026)
+  const getParticipacaoLojasNaFamilia = (familia) => {
+    const totalFamilia = lojasIndices.reduce((s, idx) => s + (familia.plano2026[idx] || 0), 0);
+    if (totalFamilia === 0) return {};
+
+    const participacao = {};
+    lojasIndices.forEach((lojaIdx, i) => {
+      const loja = lojasFiltradas[i];
+      participacao[loja] = (familia.plano2026[lojaIdx] || 0) / totalFamilia;
+    });
+    return participacao;
+  };
+
+  // Distribuir valor proporcionalmente usando algoritmo largest remainder
+  const distribuirProporcional = (total, participacao, lojasValidas) => {
+    if (total === 0 || lojasValidas.length === 0) return {};
+
+    // Recalcular participação só para lojas válidas
+    const totalPart = lojasValidas.reduce((s, l) => s + (participacao[l] || 0), 0);
+    if (totalPart === 0) {
+      // Se não há participação, dividir igualmente
+      const porLoja = Math.floor(total / lojasValidas.length);
+      const resto = total - (porLoja * lojasValidas.length);
+      const result = {};
+      lojasValidas.forEach((l, i) => {
+        result[l] = porLoja + (i < resto ? 1 : 0);
+      });
+      return result;
+    }
+
+    const result = {};
+    const restos = [];
+    let soma = 0;
+
+    lojasValidas.forEach(loja => {
+      const partNorm = (participacao[loja] || 0) / totalPart;
+      const valorExato = total * partNorm;
+      const valorFloor = Math.floor(valorExato);
+      result[loja] = valorFloor;
+      soma += valorFloor;
+      restos.push({ loja, resto: valorExato - valorFloor });
+    });
+
+    // Distribuir o resto usando largest remainder
+    let falta = total - soma;
+    restos.sort((a, b) => b.resto - a.resto);
+    for (let i = 0; i < falta && i < restos.length; i++) {
+      result[restos[i].loja] += 1;
+    }
+
+    return result;
+  };
 
   // Buscar SKUs de uma família agrupados por ref > cor > tam
   const getSkusHierarquia = (familiaName) => {
@@ -356,8 +409,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                     const refKey = `ref_${familia.nome}_${refName}`;
                     const isRefExpanded = expanded[refKey];
                     const isTamMaior = ehFamiliaTamanhoMaior(familia.nome);
-                    // Lojas válidas para esta família (excluindo lojas proibidas para tam. maior)
-                    const lojasValidasCount = lojasFiltradas.filter(loja => !isTamMaior || !lojaExcluidaTamanhoMaior(loja)).length;
+                    // Participação de cada loja na família
+                    const participacaoFamilia = getParticipacaoLojasNaFamilia(familia);
+                    // Lojas válidas (excluindo proibidas para tam. maior)
+                    const lojasValidas = lojasFiltradas.filter(loja => !isTamMaior || !lojaExcluidaTamanhoMaior(loja));
+                    // Distribuição proporcional da referência
+                    const distRef = distribuirProporcional(refData.total, participacaoFamilia, lojasValidas);
 
                     return (
                       <React.Fragment key={refIdx}>
@@ -377,7 +434,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                               <React.Fragment key={i}>
                                 <td className="px-2 py-1.5 text-right text-[10px] text-gray-400 border-l border-slate-200 bg-slate-100">—</td>
                                 <td className="px-2 py-1.5 text-right font-mono tabular-nums text-[10px] text-slate-700 bg-slate-100">
-                                  {lojaExcluida ? '—' : fmt(Math.round(refData.total / lojasValidasCount))}
+                                  {lojaExcluida ? '—' : fmt(distRef[loja] || 0)}
                                 </td>
                                 <td className="px-2 py-1.5 text-right text-[10px] text-gray-400 bg-slate-100">—</td>
                               </React.Fragment>
@@ -395,6 +452,8 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                         {isRefExpanded && Object.entries(refData.cores).map(([corName, corData], corIdx) => {
                           const corKey = `cor_${familia.nome}_${refName}_${corName}`;
                           const isCorExpanded = expanded[corKey];
+                          // Distribuição proporcional da cor
+                          const distCor = distribuirProporcional(corData.total, participacaoFamilia, lojasValidas);
 
                           return (
                             <React.Fragment key={corIdx}>
@@ -414,7 +473,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                                     <React.Fragment key={i}>
                                       <td className="px-2 py-1.5 text-right text-[10px] text-gray-400 border-l border-violet-100 bg-violet-50">—</td>
                                       <td className="px-2 py-1.5 text-right font-mono tabular-nums text-[10px] text-violet-700 bg-violet-50">
-                                        {lojaExcluida ? '—' : fmt(Math.round(corData.total / lojasValidasCount))}
+                                        {lojaExcluida ? '—' : fmt(distCor[loja] || 0)}
                                       </td>
                                       <td className="px-2 py-1.5 text-right text-[10px] text-gray-400 bg-violet-50">—</td>
                                     </React.Fragment>
@@ -429,36 +488,40 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                               </tr>
 
                               {/* Tamanhos */}
-                              {isCorExpanded && Object.entries(corData.tamanhos).map(([tamName, tamValor], tamIdx) => (
-                                <tr key={tamIdx} className="bg-teal-50 hover:bg-teal-100 transition-colors">
-                                  <td className="px-3 py-1 sticky left-0 bg-teal-50 z-10 min-w-[200px]">
-                                    <div className="flex items-center gap-1.5 pl-12">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-                                      <span className="text-[10px] text-teal-700 font-medium">{tamName}</span>
-                                    </div>
-                                  </td>
-                                  {lojasFiltradas.map((loja, i) => {
-                                    const lojaExcluida = isTamMaior && lojaExcluidaTamanhoMaior(loja);
-                                    return (
-                                      <React.Fragment key={i}>
-                                        <td className="px-2 py-1 text-right text-[10px] text-gray-400 border-l border-teal-100 bg-teal-50">—</td>
-                                        <td className="px-2 py-1 text-right font-mono tabular-nums text-[10px] text-teal-700 bg-teal-50">
-                                          {lojaExcluida ? '—' : fmt(Math.round(tamValor / lojasValidasCount))}
-                                        </td>
-                                        <td className="px-2 py-1 text-right text-[10px] text-gray-400 bg-teal-50">—</td>
-                                      </React.Fragment>
-                                    );
-                                  })}
-                                  <td colSpan="2" className="px-2 py-1 text-right font-mono tabular-nums text-[10px] text-teal-800 border-l-2 border-teal-200 bg-teal-100/60">
-                                    {fmt(tamValor)} un
-                                  </td>
-                                  <td className="px-2 py-1 text-right bg-teal-100/60">
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-teal-200 text-teal-800">
-                                      SKU
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
+                              {isCorExpanded && Object.entries(corData.tamanhos).map(([tamName, tamValor], tamIdx) => {
+                                // Distribuição proporcional do tamanho (SKU)
+                                const distTam = distribuirProporcional(tamValor, participacaoFamilia, lojasValidas);
+                                return (
+                                  <tr key={tamIdx} className="bg-teal-50 hover:bg-teal-100 transition-colors">
+                                    <td className="px-3 py-1 sticky left-0 bg-teal-50 z-10 min-w-[200px]">
+                                      <div className="flex items-center gap-1.5 pl-12">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                                        <span className="text-[10px] text-teal-700 font-medium">{tamName}</span>
+                                      </div>
+                                    </td>
+                                    {lojasFiltradas.map((loja, i) => {
+                                      const lojaExcluida = isTamMaior && lojaExcluidaTamanhoMaior(loja);
+                                      return (
+                                        <React.Fragment key={i}>
+                                          <td className="px-2 py-1 text-right text-[10px] text-gray-400 border-l border-teal-100 bg-teal-50">—</td>
+                                          <td className="px-2 py-1 text-right font-mono tabular-nums text-[10px] text-teal-700 bg-teal-50">
+                                            {lojaExcluida ? '—' : fmt(distTam[loja] || 0)}
+                                          </td>
+                                          <td className="px-2 py-1 text-right text-[10px] text-gray-400 bg-teal-50">—</td>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                    <td colSpan="2" className="px-2 py-1 text-right font-mono tabular-nums text-[10px] text-teal-800 border-l-2 border-teal-200 bg-teal-100/60">
+                                      {fmt(tamValor)} un
+                                    </td>
+                                    <td className="px-2 py-1 text-right bg-teal-100/60">
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-teal-200 text-teal-800">
+                                        SKU
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </React.Fragment>
                           );
                         })}

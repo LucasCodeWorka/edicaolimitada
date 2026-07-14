@@ -40,6 +40,38 @@ const fmt = (v, dec = 0) => Number(v || 0).toLocaleString('pt-BR', {
   maximumFractionDigits: dec,
 });
 
+const normalizeText = (value, fallback = '') => String(value || fallback).trim().toUpperCase();
+
+const groupRowsBy = (rows, key, fallback = 'OUTROS') => {
+  const grouped = rows.reduce((acc, row) => {
+    const name = normalizeText(row[key], fallback);
+    acc[name] = (acc[name] || 0) + Number(row.valor || 0);
+    return acc;
+  }, {});
+
+  return Object.entries(grouped)
+    .filter(([nome]) => nome && nome.trim())
+    .map(([nome, valor]) => ({ nome, valor }))
+    .sort((a, b) => b.valor - a.valor);
+};
+
+const groupHistoricalLineFromPlan = (planRows, totalHistoricalValue) => {
+  const byLine = planRows.reduce((acc, item) => {
+    const line = normalizeText(item.linha || FAMILIA_LINHA_MAP[item.familia], 'OUTROS');
+    acc[line] = (acc[line] || 0) + Number(item.vendaBase || item.plano || 0);
+    return acc;
+  }, {});
+
+  const planTotal = Object.values(byLine).reduce((sum, value) => sum + value, 0);
+
+  return Object.entries(byLine)
+    .map(([nome, value]) => ({
+      nome,
+      valor: planTotal > 0 ? totalHistoricalValue * (value / planTotal) : 0
+    }))
+    .sort((a, b) => b.valor - a.valor);
+};
+
 function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
@@ -128,7 +160,8 @@ function App() {
     familiaData2025 = [],
     linhaData2025 = [],
     subgrupoData2025 = [],
-    refData2025 = []
+    refData2025 = [],
+    historicoVendasData = []
   } = dashboardData || {};
 
   // Filtrar os dados do plano baseado nos filtros selecionados
@@ -255,6 +288,80 @@ function App() {
 
     return { grupoAgg, familiaAgg, refAgg, linhaAgg, subgrupoAgg };
   }, [dadosFiltrados]);
+
+  const dados2025Filtrados = useMemo(() => {
+    const has2025Filters = filters.familia !== 'TODAS' ||
+                            filters.grupo !== 'TODAS' ||
+                            filters.colecao !== 'TODAS' ||
+                            filters.linha !== 'TODAS' ||
+                            filters.referencia !== 'TODAS' ||
+                            filters.empresa !== 'TODAS';
+
+    if (!has2025Filters) {
+      return {
+        grupo: grupoData2025,
+        subgrupo: subgrupoData2025,
+        familia: familiaData2025,
+        linha: linhaData2025,
+        ref: refData2025
+      };
+    }
+
+    const familiasHistoricas = new Set(
+      dadosFiltrados.map(item => normalizeText(item.familiaHist || item.familia)).filter(Boolean)
+    );
+
+    if (historicoVendasData.length > 0 && familiasHistoricas.size > 0) {
+      let historico = historicoVendasData.filter(item =>
+        familiasHistoricas.has(normalizeText(item.familia))
+      );
+
+      if (filters.grupo !== 'TODAS') {
+        historico = historico.filter(item => normalizeText(item.grupo) === normalizeText(filters.grupo));
+      }
+
+      if (filters.referencia !== 'TODAS') {
+        historico = historico.filter(item => String(item.ref || '').includes(filters.referencia));
+      }
+
+      if (filters.empresa !== 'TODAS') {
+        historico = historico.filter(item => normalizeText(item.empresa) === normalizeText(filters.empresa));
+      }
+
+      const totalHistorico = historico.reduce((sum, item) => sum + Number(item.valor || 0), 0);
+
+      return {
+        grupo: groupRowsBy(historico, 'grupo', 'SEM INFO'),
+        subgrupo: groupRowsBy(historico, 'subgrupo', 'SEM INFO'),
+        familia: groupRowsBy(historico, 'familia', 'OUTROS'),
+        linha: groupHistoricalLineFromPlan(dadosFiltrados, totalHistorico),
+        ref: groupRowsBy(historico, 'ref', 'OUTROS')
+      };
+    }
+
+    const fallbackRows = dadosFiltrados.map(item => ({
+      ...item,
+      familia: item.familiaHist || item.familia,
+      valor: Number(item.vendaBase || 0)
+    }));
+
+    return {
+      grupo: groupRowsBy(fallbackRows, 'grupo', 'SEM INFO'),
+      subgrupo: groupRowsBy(fallbackRows, 'subgrupo', 'SEM INFO'),
+      familia: groupRowsBy(fallbackRows, 'familia', 'OUTROS'),
+      linha: groupRowsBy(fallbackRows, 'linha', 'OUTROS'),
+      ref: groupRowsBy(fallbackRows, 'ref', 'OUTROS')
+    };
+  }, [
+    dadosFiltrados,
+    filters,
+    grupoData2025,
+    familiaData2025,
+    linhaData2025,
+    subgrupoData2025,
+    refData2025,
+    historicoVendasData
+  ]);
 
   // Usar valores originais (sem redução - plano definido pelo Cairo)
   const dadosAjustados = useMemo(() => {
@@ -475,27 +582,27 @@ function App() {
           {/* Gráficos de Barras 2025 - 5 em linha */}
           <div className="grid grid-cols-5 gap-5">
             <HorizontalBarChart
-              data={grupoData2025}
+              data={dados2025Filtrados.grupo}
               title="Por Grupo"
               subtitle="Venda 2025"
             />
             <HorizontalBarChart
-              data={subgrupoData2025}
+              data={dados2025Filtrados.subgrupo}
               title="Por Subgrupo"
               subtitle="Venda 2025"
             />
             <HorizontalBarChart
-              data={familiaData2025}
+              data={dados2025Filtrados.familia}
               title="Por Família"
               subtitle="Venda 2025"
             />
             <HorizontalBarChart
-              data={linhaData2025}
+              data={dados2025Filtrados.linha}
               title="Por Linha"
               subtitle="Venda 2025"
             />
             <HorizontalBarChart
-              data={refData2025}
+              data={dados2025Filtrados.ref}
               title="Por Referência"
               subtitle="Venda 2025"
             />

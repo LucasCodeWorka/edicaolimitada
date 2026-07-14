@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import {
   getCachedPlanningRows,
   getLatestCacheRun,
-  refreshPlanningCache
+  refreshPlanningCache,
+  getGrupoSubgrupoProdutos
 } from './cacheRepository.js';
 import { buildDashboardFromSales } from './dashboardBuilder.js';
 import {
@@ -16,6 +17,7 @@ import {
   getHealth,
   getSalesSummary
 } from './dashboardRepository.js';
+import { loadSkusVerao27 } from './excelReader.js';
 
 dotenv.config();
 
@@ -25,6 +27,36 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const dashboardCache = new Map();
+
+function normalizeOption(value, fallback = 'SEM INFO') {
+  const text = String(value || '').trim();
+  return text || fallback;
+}
+
+function groupPlanRows(rows, key) {
+  const grouped = new Map();
+
+  rows.forEach((row) => {
+    const name = normalizeOption(row[key]);
+    grouped.set(name, (grouped.get(name) || 0) + Number(row.plano || 0));
+  });
+
+  return Array.from(grouped, ([nome, valor]) => ({ nome, valor }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
+function refreshPlanDerivedData(dashboard) {
+  const rows = dashboard.planoEdicaoLimitadaData || [];
+  const unique = (key) => Array.from(new Set(rows.map(row => normalizeOption(row[key])).filter(Boolean))).sort();
+
+  dashboard.filterOptions = {
+    ...(dashboard.filterOptions || {}),
+    grupos: ['TODAS', ...unique('grupo')],
+    subgrupos: ['TODAS', ...unique('subgrupo')]
+  };
+  dashboard.grupoData = groupPlanRows(rows, 'grupo');
+  dashboard.subgrupoData = groupPlanRows(rows, 'subgrupo');
+}
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || true
@@ -91,9 +123,11 @@ app.post('/api/cache/refresh', async (req, res) => {
 app.get('/api/dashboard-data', async (req, res) => {
   if (req.query.source === 'db') {
     try {
-      const cacheKey = 'verao26-edicao-limitada-2025s2';
+      const cacheKey = 'verao26-edicao-limitada-2025s2-v10'; // v10: curva de tamanho por grade ordenada
+      const needsRefresh = !dashboardCache.has(cacheKey) || req.query.refresh === '1';
+      console.log('[dashboard-data] cacheKey:', cacheKey, 'hasCache:', dashboardCache.has(cacheKey), 'refresh:', req.query.refresh, 'needsRefresh:', needsRefresh);
 
-      if (!dashboardCache.has(cacheKey) || req.query.refresh === '1') {
+      if (needsRefresh) {
         const rows = await getCachedPlanningRows();
 
         if (rows.length === 0) {
@@ -103,7 +137,32 @@ app.get('/api/dashboard-data', async (req, res) => {
           return;
         }
 
-        dashboardCache.set(cacheKey, buildDashboardFromSales(rows));
+        const skusExcel = loadSkusVerao27();
+        const codProdutosPlano = skusExcel
+          .map(sku => sku.codProduto)
+          .filter(cod => cod && cod !== '');
+        const grupoSubgrupoMap = await getGrupoSubgrupoProdutos(codProdutosPlano);
+        const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap });
+
+        // Enriquecer SKUs com grupo/subgrupo do banco
+        const codProdutos = dashboard.planoEdicaoLimitadaData
+          .map(sku => sku.codProduto)
+          .filter(cod => cod && cod !== '');
+
+        if (codProdutos.length > 0) {
+          dashboard.planoEdicaoLimitadaData.forEach(sku => {
+            const info = grupoSubgrupoMap[sku.codProduto];
+            if (info) {
+              sku.grupo = info.grupo;
+              sku.subgrupo = info.subgrupo;
+            }
+          });
+
+          console.log('[dashboard-data] Enriquecidos', Object.keys(grupoSubgrupoMap).length, 'SKUs com grupo/subgrupo');
+        }
+
+        refreshPlanDerivedData(dashboard);
+        dashboardCache.set(cacheKey, dashboard);
       }
 
       res.json(dashboardCache.get(cacheKey));

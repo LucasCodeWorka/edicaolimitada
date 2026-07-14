@@ -296,3 +296,81 @@ export async function getLatestCacheRun() {
 
   return result.rows[0] || null;
 }
+
+// Busca grupo/subgrupo dos produtos pelo codigo
+export async function getGrupoSubgrupoProdutos(codProdutos) {
+  if (!codProdutos || codProdutos.length === 0) return {};
+
+  const result = await query(`
+    select
+      pc21.cd_produto::text as idproduto,
+      max(c25.ds_classificacao) as grupo,
+      max(c26.ds_classificacao) as subgrupo
+    from public.prd_produtoclas pc21
+    left join public.prd_produtoclas pc25 on pc25.cd_produto = pc21.cd_produto and pc25.cd_tipoclas = ${CLASSIFICATION_TYPES.grupo}
+    left join public.prd_classificacao c25 on c25.cd_tipoclas = ${CLASSIFICATION_TYPES.grupo} and trim(c25.cd_classificacao) = trim(pc25.cd_classificacao)
+    left join public.prd_produtoclas pc26 on pc26.cd_produto = pc21.cd_produto and pc26.cd_tipoclas = ${CLASSIFICATION_TYPES.subgrupo}
+    left join public.prd_classificacao c26 on c26.cd_tipoclas = ${CLASSIFICATION_TYPES.subgrupo} and trim(c26.cd_classificacao) = trim(pc26.cd_classificacao)
+    where pc21.cd_tipoclas = ${CLASSIFICATION_TYPES.familia}
+    and pc21.cd_produto = any($1::bigint[])
+    group by pc21.cd_produto
+  `, [codProdutos]);
+
+  // Retorna mapa codProduto -> {grupo, subgrupo}
+  const mapa = {};
+  result.rows.forEach(row => {
+    mapa[row.idproduto] = {
+      grupo: row.grupo || 'SEM INFO',
+      subgrupo: row.subgrupo || 'SEM INFO'
+    };
+  });
+
+  return mapa;
+}
+
+// Busca vendas agregadas por familia+grupo+subgrupo+loja
+export async function getVendasPorFamiliaGrupoSubgrupoLoja({
+  startDate = '2025-07-01',
+  endDate = '2025-12-31'
+} = {}) {
+  await ensureCacheTables();
+
+  const result = await query(`
+    select
+      p.familia,
+      p.grupo,
+      p.subgrupo,
+      v.empresa as loja,
+      sum(v.venda)::float as venda
+    from public.app_el_cache_vendas v
+    join public.app_el_cache_produtos p on p.idproduto = v.idproduto
+    where v.cache_version = $1
+      and v.start_date = $2::date
+      and v.end_date = $3::date
+      and p.familia is not null
+      and p.grupo is not null
+    group by p.familia, p.grupo, p.subgrupo, v.empresa
+    order by p.familia, p.grupo, p.subgrupo, v.empresa
+  `, [CACHE_VERSION, startDate, endDate]);
+
+  // Retorna mapa familia|grupo|subgrupo -> {loja: venda}
+  const mapa = {};
+  result.rows.forEach(row => {
+    const familia = (row.familia || '').toUpperCase().trim();
+    const grupo = (row.grupo || '').toUpperCase().trim();
+    const subgrupo = (row.subgrupo || '').toUpperCase().trim();
+    const loja = (row.loja || '').toUpperCase().trim()
+      .replace(/^LIEBE\s+/i, '')
+      .replace(/\s+-\s+[A-Z]{2}$/i, '')
+      .replace(/\s+SHOPPING$/i, '')
+      .trim();
+    const key = `${familia}|${grupo}|${subgrupo}`;
+
+    if (!mapa[key]) {
+      mapa[key] = { familia, grupo, subgrupo, vendasPorLoja: {} };
+    }
+    mapa[key].vendasPorLoja[loja] = (mapa[key].vendasPorLoja[loja] || 0) + row.venda;
+  });
+
+  return mapa;
+}

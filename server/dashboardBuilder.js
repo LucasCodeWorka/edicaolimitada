@@ -58,6 +58,369 @@ function groupSum(rows, key, valueKey = 'plano') {
     .sort((a, b) => b.valor - a.valor);
 }
 
+function getSkuGrupoSubgrupo(sku, grupoSubgrupoMap = {}) {
+  const info = grupoSubgrupoMap[sku.codProduto] || {};
+  return {
+    grupo: normalizeName(info.grupo).toUpperCase(),
+    subgrupo: normalizeName(info.subgrupo).toUpperCase()
+  };
+}
+
+function getHistoricSubgroupTotals(vendasPorFamiliaGrupoSubgrupo, familiaHist, grupo) {
+  const totals = new Map();
+  const prefix = `${familiaHist}|${grupo}|`;
+
+  Object.entries(vendasPorFamiliaGrupoSubgrupo).forEach(([key, value]) => {
+    if (!key.startsWith(prefix)) return;
+    const [, , subgrupo] = key.split('|');
+    totals.set(subgrupo, (totals.get(subgrupo) || 0) + Number(value || 0));
+  });
+
+  return totals;
+}
+
+function buildHistoricalFamilyLineMap(depara) {
+  const map = new Map();
+
+  Object.entries(depara).forEach(([familiaNova, familiaHist]) => {
+    const linha = getLinha(familiaNova);
+    if (!linha) return;
+
+    const histKey = normalizeName(familiaHist).toUpperCase();
+    if (!map.has(histKey)) map.set(histKey, new Set());
+    map.get(histKey).add(normalizeName(linha).toUpperCase());
+  });
+
+  return map;
+}
+
+function rowMatchesLine(row, linhaKey, historicalFamilyLineMap) {
+  const familia = normalizeName(row.familia).toUpperCase();
+  const mappedLines = historicalFamilyLineMap.get(familia);
+
+  if (mappedLines && mappedLines.size > 0) {
+    return mappedLines.has(linhaKey);
+  }
+
+  const rowLinha = normalizeName(getLinha(row.familia) || row.classificacao).toUpperCase();
+  return rowLinha === linhaKey;
+}
+
+function getLineSubgroupTotals(rows, linha, grupo, historicalFamilyLineMap) {
+  const totals = new Map();
+  const linhaKey = normalizeName(linha).toUpperCase();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+
+  rows.forEach((row) => {
+    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+
+    const rowGrupo = normalizeName(row.grupo).toUpperCase();
+    if (rowGrupo !== grupoKey) return;
+
+    const subgrupo = normalizeName(row.subgrupo).toUpperCase();
+    totals.set(subgrupo, (totals.get(subgrupo) || 0) + Number(row.venda || 0));
+  });
+
+  return totals;
+}
+
+const LETTER_SIZE_ORDER = [
+  'PP', 'P', 'M', 'G', 'GG', 'EG', 'XG', 'XGG', 'XXG', 'EXG'
+];
+
+function sizeRank(size) {
+  const value = normalizeName(size).toUpperCase();
+  const numeric = Number(value.replace(',', '.'));
+
+  if (Number.isFinite(numeric)) {
+    return numeric;
+  }
+
+  const index = LETTER_SIZE_ORDER.indexOf(value);
+  return index >= 0 ? 1000 + index : 2000;
+}
+
+function sortSizes(sizes) {
+  return [...sizes].sort((a, b) => {
+    const rankDiff = sizeRank(a) - sizeRank(b);
+    return rankDiff || String(a).localeCompare(String(b));
+  });
+}
+
+function addSizeTotal(totals, size, value) {
+  const key = normalizeName(size).toUpperCase();
+  totals.set(key, (totals.get(key) || 0) + Number(value || 0));
+}
+
+function getFamilySubgroupSizeTotals(rows, familiaHist, grupo, subgrupos) {
+  const totals = new Map();
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoSet = new Set(subgrupos.map(subgrupo => normalizeName(subgrupo).toUpperCase()));
+
+  rows.forEach((row) => {
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (!subgrupoSet.has(normalizeName(row.subgrupo).toUpperCase())) return;
+
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
+function getFamilyGroupSizeTotals(rows, familiaHist, grupo) {
+  const totals = new Map();
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+
+  rows.forEach((row) => {
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
+function getLineSubgroupSizeTotals(rows, linha, grupo, subgrupo, historicalFamilyLineMap) {
+  const totals = new Map();
+  const linhaKey = normalizeName(linha).toUpperCase();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoKey = normalizeName(subgrupo).toUpperCase();
+
+  rows.forEach((row) => {
+    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
+
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
+function mapHistoricalSizesToNewSizes(newSizes, historicalSizeTotals) {
+  const mapped = new Map(newSizes.map(size => [size, 0]));
+  const sortedNewSizes = sortSizes(newSizes);
+  const sortedHistoricalSizes = sortSizes([...historicalSizeTotals.keys()]);
+
+  if (sortedNewSizes.length === 0 || sortedHistoricalSizes.length === 0) {
+    return mapped;
+  }
+
+  sortedHistoricalSizes.forEach((historicalSize, index) => {
+    const targetIndex = Math.min(index, sortedNewSizes.length - 1);
+    const targetSize = sortedNewSizes[targetIndex];
+    mapped.set(targetSize, (mapped.get(targetSize) || 0) + Number(historicalSizeTotals.get(historicalSize) || 0));
+  });
+
+  return mapped;
+}
+
+function mergeMissingSizeWeights(primaryWeights, fallbackWeights) {
+  const result = new Map(primaryWeights);
+
+  result.forEach((value, size) => {
+    if (value > 0) return;
+    result.set(size, Number(fallbackWeights.get(size) || 0));
+  });
+
+  const total = [...result.values()].reduce((sum, value) => sum + Number(value || 0), 0);
+  if (total > 0) {
+    return result;
+  }
+
+  result.forEach((_value, size) => {
+    result.set(size, 1);
+  });
+
+  return result;
+}
+
+function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, familiaHist, rows, familiaNova, historicalFamilyLineMap) {
+  const mapping = new Map();
+  const grupos = new Map();
+  const skuCounts = new Map();
+  const linhaFamiliaNova = getLinha(familiaNova);
+
+  skusFamilia.forEach((sku) => {
+    if (!grupos.has(sku.grupo)) grupos.set(sku.grupo, new Set());
+    grupos.get(sku.grupo).add(sku.subgrupo);
+    const key = `${sku.grupo}|${sku.subgrupo}`;
+    skuCounts.set(key, (skuCounts.get(key) || 0) + 1);
+  });
+
+  grupos.forEach((novosSubgrupos, grupo) => {
+    const histTotals = getHistoricSubgroupTotals(vendasPorFamiliaGrupoSubgrupo, familiaHist, grupo);
+    const historicosSubgrupos = new Set(histTotals.keys());
+    const matchedNovos = new Set();
+    const matchedHistoricos = new Set();
+
+    novosSubgrupos.forEach((subgrupo) => {
+      if (historicosSubgrupos.has(subgrupo)) {
+        mapping.set(`${grupo}|${subgrupo}`, {
+          grupoHist: grupo,
+          subgrupoHist: subgrupo,
+          histSubgrupos: [subgrupo],
+          matchTipo: 'EXATO'
+        });
+        matchedNovos.add(subgrupo);
+        matchedHistoricos.add(subgrupo);
+      }
+    });
+
+    const novosSobra = [...novosSubgrupos].filter(subgrupo => !matchedNovos.has(subgrupo));
+    const historicosSobra = [...historicosSubgrupos].filter(subgrupo => !matchedHistoricos.has(subgrupo));
+
+    if (novosSobra.length === 1 && historicosSobra.length === 1) {
+      mapping.set(`${grupo}|${novosSobra[0]}`, {
+        grupoHist: grupo,
+        subgrupoHist: historicosSobra[0],
+        histSubgrupos: [historicosSobra[0]],
+        matchTipo: 'SOBRA_UNICA'
+      });
+      return;
+    }
+
+    if (novosSobra.length > 0 && historicosSobra.length > 0) {
+      const baseHistoricaRestante = historicosSobra.reduce(
+        (sum, subgrupo) => sum + Number(histTotals.get(subgrupo) || 0),
+        0
+      );
+      const totalSkusSobra = novosSobra.reduce(
+        (sum, subgrupo) => sum + Number(skuCounts.get(`${grupo}|${subgrupo}`) || 0),
+        0
+      );
+      const linhaSubgroupTotals = getLineSubgroupTotals(rows, linhaFamiliaNova, grupo, historicalFamilyLineMap);
+      const totalLinhaSobra = novosSobra.reduce(
+        (sum, subgrupo) => sum + Number(linhaSubgroupTotals.get(subgrupo) || 0),
+        0
+      );
+
+      novosSobra.forEach((subgrupo) => {
+        const skuCount = Number(skuCounts.get(`${grupo}|${subgrupo}`) || 0);
+        const participacaoLinha = totalLinhaSobra > 0
+          ? Number(linhaSubgroupTotals.get(subgrupo) || 0) / totalLinhaSobra
+          : 0;
+        const participacaoSku = totalSkusSobra > 0 ? skuCount / totalSkusSobra : 1 / novosSobra.length;
+        const participacao = participacaoLinha || participacaoSku;
+
+        mapping.set(`${grupo}|${subgrupo}`, {
+          grupoHist: grupo,
+          subgrupoHist: historicosSobra.join(' + '),
+          histSubgrupos: historicosSobra,
+          matchTipo: participacaoLinha ? 'POOL_LINHA' : 'POOL_RESTANTE',
+          vendaBaseOverride: baseHistoricaRestante * participacao,
+          linhaBase: participacaoLinha ? linhaFamiliaNova : undefined
+        });
+      });
+    }
+  });
+
+  return mapping;
+}
+
+function distributeBySubgroupTarget(skus, targetTotal) {
+  if (skus.length === 0 || targetTotal <= 0) {
+    return new Map(skus.map(sku => [sku, 0]));
+  }
+
+  const values = roundToTotal(skus, () => targetTotal / skus.length, targetTotal);
+  return new Map(skus.map((sku, index) => [sku, values[index]]));
+}
+
+function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySizeTotals, fallbackSizeTotals = new Map()) {
+  const planoPorSku = new Map();
+  const vendaBasePorSku = new Map();
+
+  if (skus.length === 0 || targetTotal <= 0) {
+    skus.forEach((sku) => {
+      planoPorSku.set(sku, 0);
+      vendaBasePorSku.set(sku, 0);
+    });
+    return { planoPorSku, vendaBasePorSku };
+  }
+
+  const skusBySize = new Map();
+  skus.forEach((sku) => {
+    const size = normalizeName(sku.tamanho).toUpperCase();
+    if (!skusBySize.has(size)) skusBySize.set(size, []);
+    skusBySize.get(size).push(sku);
+  });
+
+  const newSizes = [...skusBySize.keys()];
+  const primaryWeights = mapHistoricalSizesToNewSizes(newSizes, primarySizeTotals);
+  const fallbackWeights = mapHistoricalSizesToNewSizes(newSizes, fallbackSizeTotals);
+  const weights = mergeMissingSizeWeights(primaryWeights, fallbackWeights);
+  const sizeRows = newSizes.map(size => ({ size, weight: Number(weights.get(size) || 0) }));
+  const totalWeight = sizeRows.reduce((sum, row) => sum + row.weight, 0);
+  const planoPorTamanho = roundToTotal(
+    sizeRows,
+    row => totalWeight > 0 ? targetTotal * (row.weight / totalWeight) : targetTotal / sizeRows.length,
+    targetTotal
+  );
+
+  sizeRows.forEach((row, index) => {
+    const skusSize = skusBySize.get(row.size) || [];
+    const planoTamanho = planoPorTamanho[index] || 0;
+    const baseTamanho = totalWeight > 0
+      ? vendaBaseTotal * (row.weight / totalWeight)
+      : vendaBaseTotal / sizeRows.length;
+    const planoSkuValues = roundToTotal(skusSize, () => planoTamanho / skusSize.length, planoTamanho);
+
+    skusSize.forEach((sku, skuIndex) => {
+      planoPorSku.set(sku, planoSkuValues[skuIndex] || 0);
+      vendaBasePorSku.set(sku, Math.round((baseTamanho / skusSize.length) * 100) / 100);
+    });
+  });
+
+  return { planoPorSku, vendaBasePorSku };
+}
+
+function distributeSkusByFamilyTotal(skus, targetTotal, vendaBaseTotal) {
+  const planoPorSku = new Map();
+  const vendaBasePorSku = new Map();
+
+  if (skus.length === 0) {
+    return { planoPorSku, vendaBasePorSku };
+  }
+
+  const planoValues = roundToTotal(skus, () => targetTotal / skus.length, targetTotal);
+  skus.forEach((sku, index) => {
+    planoPorSku.set(sku, planoValues[index]);
+    vendaBasePorSku.set(sku, Math.round((vendaBaseTotal / skus.length) * 100) / 100);
+  });
+
+  return { planoPorSku, vendaBasePorSku };
+}
+
+function buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaFallback) {
+  const rowsByFamily = new Map();
+  planoRows.forEach((row) => {
+    if (!rowsByFamily.has(row.familia)) rowsByFamily.set(row.familia, []);
+    rowsByFamily.get(row.familia).push(row);
+  });
+
+  const result = new Map();
+  rowsByFamily.forEach((rows, familia) => {
+    const totalPlano = rows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+    const fallback = planoPorLojaFallback.get(familia) || {};
+    const totalFallback = lojasArray.reduce((sum, loja) => sum + Number(fallback[loja] || 0), 0);
+    const raw = lojasArray.map((loja) => ({
+      loja,
+      value: totalFallback > 0
+        ? totalPlano * (Number(fallback[loja] || 0) / totalFallback)
+        : totalPlano / lojasArray.length
+    }));
+    const values = roundToTotal(raw, row => row.value, totalPlano);
+    result.set(familia, values);
+  });
+
+  return result;
+}
+
 function buildFilterOptions({ lojas, planoRows }) {
   const unique = (key) => Array.from(new Set(planoRows.map((row) => normalizeName(row[key])).filter(Boolean))).sort();
   return {
@@ -89,31 +452,72 @@ const LOJAS_OBRIGATORIAS = {
 
 // Funcao principal: constroi dashboard a partir das vendas do cache
 // usando SKUs do Excel e regras de de-para
-export function buildDashboardFromSales(rows) {
+export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
   // Carregar SKUs do Excel e de-para
   const skusExcel = loadSkusVerao27();
   const depara = loadDeparaFamilias();
+  const historicalFamilyLineMap = buildHistoricalFamilyLineMap(depara);
 
   console.log('[dashboardBuilder] SKUs do Excel:', skusExcel.length);
   console.log('[dashboardBuilder] Linhas de venda do cache:', rows.length);
+  // DEBUG: Verificar se rows tem grupo/subgrupo
+  if (rows.length > 0) {
+    console.log('[dashboardBuilder] Exemplo row[0]:', {
+      familia: rows[0].familia,
+      grupo: rows[0].grupo,
+      subgrupo: rows[0].subgrupo
+    });
+  }
 
   // Agrupar vendas por familia historica e loja
   const vendasPorFamiliaLoja = {};
   const vendasPorFamiliaRef = {};
+  const historicoVendasData = [];
+  // NOVO: Agregar vendas por familia+grupo+subgrupo+loja para distribuicao granular
+  const vendasPorFamiliaGrupoSubgrupoLoja = {};
+  const vendasPorFamiliaGrupoSubgrupo = {};
+  // NOVO: Agregar vendas por grupo e subgrupo para gráficos
+  const vendasPorGrupo = {};
+  const vendasPorSubgrupo = {};
   const lojas = new Set();
 
   for (const row of rows) {
     const loja = normalizeStoreName(row.empresa);
     const familia = normalizeName(row.familia).toUpperCase();
+    const grupo = normalizeName(row.grupo).toUpperCase();
+    const subgrupo = normalizeName(row.subgrupo).toUpperCase();
     lojas.add(loja);
 
     const keyFL = `${familia}|${loja}`;
     vendasPorFamiliaLoja[keyFL] = (vendasPorFamiliaLoja[keyFL] || 0) + Number(row.venda || 0);
+    const venda = Number(row.venda || 0);
+
+    // NOVO: Por familia+grupo+subgrupo+loja
+    const keyFGSL = `${familia}|${grupo}|${subgrupo}|${loja}`;
+    vendasPorFamiliaGrupoSubgrupoLoja[keyFGSL] = (vendasPorFamiliaGrupoSubgrupoLoja[keyFGSL] || 0) + Number(row.venda || 0);
+    const keyFGS = `${familia}|${grupo}|${subgrupo}`;
+    vendasPorFamiliaGrupoSubgrupo[keyFGS] = (vendasPorFamiliaGrupoSubgrupo[keyFGS] || 0) + Number(row.venda || 0);
+
+    // NOVO: Agregar vendas por grupo e subgrupo (para gráficos de vendas 2025)
+    vendasPorGrupo[grupo] = (vendasPorGrupo[grupo] || 0) + venda;
+    vendasPorSubgrupo[subgrupo] = (vendasPorSubgrupo[subgrupo] || 0) + venda;
 
     // Tambem por referencia/cor/tamanho para distribuicao detalhada
     const ref = normalizeName(row.referencia, row.idproduto);
     const cor = normalizeName(row.cor).toUpperCase();
     const tam = normalizeName(row.tamanho).toUpperCase();
+
+    historicoVendasData.push({
+      empresa: loja,
+      familia,
+      grupo,
+      subgrupo,
+      ref,
+      cor,
+      tam,
+      valor: venda
+    });
+
     const keyFR = `${familia}|${ref}|${cor}|${tam}`;
     if (!vendasPorFamiliaRef[keyFR]) {
       vendasPorFamiliaRef[keyFR] = {
@@ -121,8 +525,8 @@ export function buildDashboardFromSales(rows) {
         ref,
         cor,
         tam,
-        grupo: normalizeName(row.grupo),
-        subgrupo: normalizeName(row.subgrupo),
+        grupo: grupo,
+        subgrupo: subgrupo,
         classificacao: normalizeName(row.classificacao),
         continuidade: normalizeName(row.continuidade),
         venda: 0
@@ -142,14 +546,22 @@ export function buildDashboardFromSales(rows) {
   // Para cada familia do Excel, calcular plano
   const familiasDashboard = [];
   const planoRows = [];
+  const planoPorLojaFallback = new Map();
   const skusPorFamilia = {};
 
   // Agrupar SKUs do Excel por familia
   for (const sku of skusExcel) {
-    if (!skusPorFamilia[sku.familia]) {
-      skusPorFamilia[sku.familia] = [];
+    const grupoSubgrupo = getSkuGrupoSubgrupo(sku, grupoSubgrupoMap);
+    const enrichedSku = {
+      ...sku,
+      grupo: grupoSubgrupo.grupo,
+      subgrupo: grupoSubgrupo.subgrupo
+    };
+
+    if (!skusPorFamilia[enrichedSku.familia]) {
+      skusPorFamilia[enrichedSku.familia] = [];
     }
-    skusPorFamilia[sku.familia].push(sku);
+    skusPorFamilia[enrichedSku.familia].push(enrichedSku);
   }
 
   const familiasProcessadas = new Set();
@@ -186,6 +598,8 @@ export function buildDashboardFromSales(rows) {
         planoReservado += planoLoja;
       }
     }
+
+    planoPorLojaFallback.set(familiaNova, planoPorLoja);
 
     // Se houve reserva, ajustar as outras lojas proporcionalmente
     if (planoReservado > 0) {
@@ -248,38 +662,134 @@ export function buildDashboardFromSales(rows) {
 
     // Gerar planoRows (nivel SKU)
     const skusFamilia = skusPorFamilia[familiaNova];
-    const totalSkus = skusFamilia.length;
+    const matchPorSku = new Map();
+    let planoPorSku = new Map();
+    let vendaBasePorSku = new Map();
+    const regraFamiliaTravaTotal = ['base_especial', 'fixo', 'cap'].includes(resultado.regra);
 
-    if (totalSkus > 0) {
-      // Distribuir plano entre SKUs proporcionalmente
-      // Por enquanto, igual entre todos
-      const planoPerSku = Math.floor(planoTotal / totalSkus);
-      let resto = planoTotal - (planoPerSku * totalSkus);
+    if (regraFamiliaTravaTotal) {
+      const distribuicao = distributeSkusByFamilyTotal(
+        skusFamilia,
+        planoTotal,
+        resultado.baseEspecial !== undefined ? resultado.baseEspecial : vendaTotalFamilia
+      );
+      planoPorSku = distribuicao.planoPorSku;
+      vendaBasePorSku = distribuicao.vendaBasePorSku;
+      skusFamilia.forEach((sku) => {
+        matchPorSku.set(sku, {
+          grupoHist: sku.grupo,
+          subgrupoHist: sku.subgrupo,
+          matchTipo: resultado.regra.toUpperCase()
+        });
+      });
+    } else {
+      const subgroupMapping = buildSubgroupMapping(
+        skusFamilia,
+        vendasPorFamiliaGrupoSubgrupo,
+        familiaHist,
+        rows,
+        familiaNova,
+        historicalFamilyLineMap
+      );
+      const skusPorGrupoSubgrupo = {};
 
+      skusFamilia.forEach((sku) => {
+        const key = `${sku.grupo}|${sku.subgrupo}`;
+        if (!skusPorGrupoSubgrupo[key]) {
+          skusPorGrupoSubgrupo[key] = [];
+        }
+        skusPorGrupoSubgrupo[key].push(sku);
+      });
+
+      let planoAlocadoSubgrupos = 0;
+      const gruposSemBase = [];
+
+      Object.entries(skusPorGrupoSubgrupo).forEach(([key, skusGrupoSubgrupo]) => {
+        const [grupo, subgrupo] = key.split('|');
+        const mapped = subgroupMapping.get(key) || {
+          grupoHist: grupo,
+          subgrupoHist: subgrupo,
+          matchTipo: 'SEM_MATCH'
+        };
+        const histKey = `${familiaHist}|${mapped.grupoHist}|${mapped.subgrupoHist}`;
+        const vendaBaseSubgrupo = mapped.vendaBaseOverride !== undefined
+          ? Number(mapped.vendaBaseOverride || 0)
+          : Number(vendasPorFamiliaGrupoSubgrupo[histKey] || 0);
+
+        if (vendaBaseSubgrupo <= 0) {
+          gruposSemBase.push({ key, skus: skusGrupoSubgrupo, mapped });
+          return;
+        }
+
+        const planoSubgrupo = Math.ceil(vendaBaseSubgrupo * (1 + CRESCIMENTO_PADRAO));
+        const histSubgrupos = mapped.histSubgrupos || String(mapped.subgrupoHist || subgrupo).split(' + ');
+        const primarySizeTotals = mapped.matchTipo === 'POOL_LINHA'
+          ? getLineSubgroupSizeTotals(rows, mapped.linhaBase || getLinha(familiaNova), grupo, subgrupo, historicalFamilyLineMap)
+          : getFamilySubgroupSizeTotals(rows, familiaHist, mapped.grupoHist || grupo, histSubgrupos);
+        const fallbackSizeTotals = getFamilyGroupSizeTotals(rows, familiaHist, mapped.grupoHist || grupo);
+        const distribuicao = distributeSkusBySizeTarget(
+          skusGrupoSubgrupo,
+          planoSubgrupo,
+          vendaBaseSubgrupo,
+          primarySizeTotals,
+          fallbackSizeTotals
+        );
+        planoAlocadoSubgrupos += planoSubgrupo;
+
+        skusGrupoSubgrupo.forEach((sku) => {
+          planoPorSku.set(sku, distribuicao.planoPorSku.get(sku) || 0);
+          vendaBasePorSku.set(sku, distribuicao.vendaBasePorSku.get(sku) || 0);
+          matchPorSku.set(sku, mapped);
+        });
+      });
+
+      const planoRestanteSemBase = Math.max(planoTotal - planoAlocadoSubgrupos, 0);
+      const skusSemBase = gruposSemBase.flatMap(group => group.skus);
+      const distribuicaoSemBase = distributeBySubgroupTarget(skusSemBase, planoRestanteSemBase);
+      gruposSemBase.forEach(({ skus, mapped }) => {
+        skus.forEach((sku) => {
+          planoPorSku.set(sku, distribuicaoSemBase.get(sku) || 0);
+          vendaBasePorSku.set(sku, 0);
+          matchPorSku.set(sku, mapped);
+        });
+      });
+    }
+
+    if (skusFamilia.length > 0) {
       for (const sku of skusFamilia) {
-        const planoSku = planoPerSku + (resto > 0 ? 1 : 0);
-        if (resto > 0) resto--;
+        const planoSku = planoPorSku.get(sku) || 0;
+        const vendaBaseSku = vendaBasePorSku.get(sku) || 0;
+        const matchSubgrupo = matchPorSku.get(sku) || {};
 
         planoRows.push({
           colecao: 'VERAO 27',
           familia: familiaNova,
-          grupo: 'SEM INFO', // Nao temos grupo no Excel
-          subgrupo: 'SEM INFO',
+          grupo: sku.grupo,
+          subgrupo: sku.subgrupo,
           ref: sku.referencia,
           cor: sku.cor,
           tam: sku.tamanho,
+          codProduto: sku.codProduto,
           linha: sku.linha || getLinha(familiaNova),
           continuidade: sku.continuidade,
-          vendaBase: Math.round(vendaTotalFamilia / totalSkus * 100) / 100,
+          vendaBase: vendaBaseSku,
           percCor: '100.0%',
           plano: planoSku,
           temDepara: temDePara ? 'SIM' : 'NAO',
           temPercentual: resultado.regra !== 'padrao' ? 'SIM' : 'NAO',
-          familiaHist: familiaHist
+          familiaHist: familiaHist,
+          grupoHist: matchSubgrupo.grupoHist || sku.grupo,
+          subgrupoHist: matchSubgrupo.subgrupoHist || sku.subgrupo,
+          matchSubgrupo: matchSubgrupo.matchTipo || 'SEM_MATCH'
         });
       }
     }
   }
+
+  const planoPorLojaCalculado = buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaFallback);
+  familiasDashboard.forEach((familia) => {
+    familia.plano2026 = planoPorLojaCalculado.get(familia.nome) || familia.plano2026;
+  });
 
   // Ordenar familias por plano total decrescente
   familiasDashboard.sort((a, b) => {
@@ -315,17 +825,24 @@ export function buildDashboardFromSales(rows) {
       altoInverno25: 0
     },
     grupoData: groupSum(planoRows, 'grupo'),
-    grupoData2025: groupSum(planoRows, 'grupo', 'vendaBase'),
+    // Usar vendas reais do período anterior (já têm grupo/subgrupo do banco)
+    grupoData2025: Object.entries(vendasPorGrupo)
+      .map(([nome, valor]) => ({ nome, valor }))
+      .sort((a, b) => b.valor - a.valor),
     familiaData: groupSum(planoRows, 'familia'),
     familiaData2025: groupSum(planoRows, 'familia', 'vendaBase'),
     linhaData: groupSum(planoRows, 'linha'),
     linhaData2025: groupSum(planoRows, 'linha', 'vendaBase'),
     subgrupoData: groupSum(planoRows, 'subgrupo'),
-    subgrupoData2025: groupSum(planoRows, 'subgrupo', 'vendaBase'),
+    // Usar vendas reais do período anterior (já têm grupo/subgrupo do banco)
+    subgrupoData2025: Object.entries(vendasPorSubgrupo)
+      .map(([nome, valor]) => ({ nome, valor }))
+      .sort((a, b) => b.valor - a.valor),
     refData: groupSum(planoRows, 'ref'),
     refData2025: groupSum(planoRows, 'ref', 'vendaBase'),
     mesProducaoData: buildMonthPlan(totalPlano),
     mesVenda2025Data: buildMonthPlan(totalVenda),
+    historicoVendasData,
     planoEdicaoLimitadaData: planoRows,
     comparativoLojasData: {
       lojas: lojasArray,
@@ -333,7 +850,9 @@ export function buildDashboardFromSales(rows) {
         nome: f.nome,
         vendas2025: f.vendas2025,
         plano2026: f.plano2026
-      }))
+      })),
+      // NOVO: Vendas por familia+grupo+subgrupo+loja para distribuicao granular no PCP
+      vendasPorFamiliaGrupoSubgrupoLoja: vendasPorFamiliaGrupoSubgrupoLoja
     },
     mapeamentoFamiliasData: {
       lojas: lojasArray,
