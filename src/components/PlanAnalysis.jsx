@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, BarChart3, Filter, Search, Target, XCircle } from 'lucide-react';
+import { hasFilterValue, matchesFilterValue } from '../utils/filterUtils';
 
 const normalize = (value, fallback = '') => String(value || fallback).trim().toUpperCase();
 
@@ -73,11 +74,12 @@ const PlanAnalysis = ({ data = [], historicoVendasData = [], filters = {} }) => 
   const filteredData = useMemo(() => {
     let rows = [...data];
 
-    if (filters.familia && filters.familia !== 'TODAS') rows = rows.filter(item => item.familia === filters.familia);
-    if (filters.grupo && filters.grupo !== 'TODAS') rows = rows.filter(item => item.grupo === filters.grupo);
-    if (filters.referencia && filters.referencia !== 'TODAS') rows = rows.filter(item => String(item.ref || '').includes(filters.referencia));
-    if (filters.empresa && filters.empresa !== 'TODAS') {
-      rows = rows.filter(item => Number(item.planoDistribuidoLojas?.[filters.empresa] || 0) > 0);
+    if (hasFilterValue(filters.familia)) rows = rows.filter(item => matchesFilterValue(item.familia, filters.familia));
+    if (hasFilterValue(filters.grupo)) rows = rows.filter(item => matchesFilterValue(item.grupo, filters.grupo));
+    if (hasFilterValue(filters.referencia)) rows = rows.filter(item => matchesFilterValue(item.ref, filters.referencia, 'includes'));
+    if (hasFilterValue(filters.empresa)) {
+      rows = rows.filter(item => Object.entries(item.planoDistribuidoLojas || {})
+        .some(([loja, valor]) => matchesFilterValue(loja, filters.empresa) && Number(valor || 0) > 0));
     }
 
     if (search.trim()) {

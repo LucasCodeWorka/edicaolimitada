@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Download } from 'lucide-react';
 import { exportMapeamentoFamilias } from '../utils/exportExcel';
+import { hasFilterValue, matchesFilterValue } from '../utils/filterUtils';
 
 // Formatador de n\u00fameros
 const fmt = (v, dec = 0) => Number(v || 0).toLocaleString('pt-BR', {
@@ -15,14 +16,14 @@ const FamilyMappingTable = ({ data, filters = {}, familiaLinhaMap = {} }) => {
   const familiasFiltradas = useMemo(() => {
     let resultado = [...familias];
 
-    if (filters.familia && filters.familia !== 'TODAS') {
-      resultado = resultado.filter(f => f.familiaAtual === filters.familia);
+    if (hasFilterValue(filters.familia)) {
+      resultado = resultado.filter(f => matchesFilterValue(f.familiaAtual, filters.familia));
     }
 
-    if (filters.linha && filters.linha !== 'TODAS') {
+    if (hasFilterValue(filters.linha)) {
       resultado = resultado.filter(f => {
         const linha = familiaLinhaMap[f.familiaAtual] || '';
-        return linha === filters.linha;
+        return matchesFilterValue(linha, filters.linha);
       });
     }
 
@@ -31,9 +32,9 @@ const FamilyMappingTable = ({ data, filters = {}, familiaLinhaMap = {} }) => {
 
   // Filtrar lojas
   const lojasFiltradas = useMemo(() => {
-    if (filters.empresa && filters.empresa !== 'TODAS') {
-      const idx = lojas.indexOf(filters.empresa);
-      if (idx >= 0) return [filters.empresa];
+    if (hasFilterValue(filters.empresa)) {
+      const selectedStores = lojas.filter(loja => matchesFilterValue(loja, filters.empresa));
+      if (selectedStores.length > 0) return selectedStores;
     }
     return lojas;
   }, [lojas, filters.empresa]);

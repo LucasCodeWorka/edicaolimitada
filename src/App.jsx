@@ -15,6 +15,7 @@ import {
   refreshDashboardCache
 } from './services/dashboardData';
 import { buildComparativoDetalhadoRows } from './utils/exportExcel';
+import { getSelectedValues, hasFilterValue, matchesFilterValue } from './utils/filterUtils';
 
 // Mapeamento de Família para Linha (baseado nos dados do CSV)
 const FAMILIA_LINHA_MAP = {
@@ -235,31 +236,36 @@ function App() {
     let dados = [...planoEdicaoLimitadaData];
 
     // Filtrar por família
-    if (filters.familia !== 'TODAS') {
-      dados = dados.filter(item => item.familia === filters.familia);
+    if (hasFilterValue(filters.familia)) {
+      dados = dados.filter(item => matchesFilterValue(item.familia, filters.familia));
     }
 
     // Filtrar por grupo
-    if (filters.grupo !== 'TODAS') {
-      dados = dados.filter(item => item.grupo === filters.grupo);
+    if (hasFilterValue(filters.grupo)) {
+      dados = dados.filter(item => matchesFilterValue(item.grupo, filters.grupo));
     }
 
     // Filtrar por coleção
-    if (filters.colecao !== 'TODAS') {
-      dados = dados.filter(item => item.colecao === filters.colecao);
+    if (hasFilterValue(filters.colecao)) {
+      dados = dados.filter(item => matchesFilterValue(item.colecao, filters.colecao));
     }
 
     // Filtrar por linha (usando mapeamento família→linha)
-    if (filters.linha !== 'TODAS') {
+    if (hasFilterValue(filters.linha)) {
       dados = dados.filter(item => {
         const linhaDoItem = FAMILIA_LINHA_MAP[item.familia] || '';
-        return linhaDoItem === filters.linha;
+        return matchesFilterValue(linhaDoItem, filters.linha);
       });
     }
 
     // Filtrar por referência
-    if (filters.referencia !== 'TODAS') {
-      dados = dados.filter(item => item.ref && item.ref.includes(filters.referencia));
+    if (hasFilterValue(filters.referencia)) {
+      dados = dados.filter(item => matchesFilterValue(item.ref, filters.referencia, 'includes'));
+    }
+
+    if (hasFilterValue(filters.empresa)) {
+      dados = dados.filter(item => Object.entries(item.planoDistribuidoLojas || {})
+        .some(([loja, valor]) => matchesFilterValue(loja, filters.empresa) && Number(valor || 0) > 0));
     }
 
     return dados;
@@ -267,14 +273,25 @@ function App() {
 
   // Calcular KPIs baseado nos dados filtrados
   const kpiFiltrado = useMemo(() => {
-    const totalPlano = dadosFiltrados.reduce((sum, item) => sum + (item.plano || 0), 0);
+    const selectedStores = getSelectedValues(filters.empresa);
+    const totalPlano = dadosFiltrados.reduce((sum, item) => {
+      if (selectedStores.length > 0) {
+        return sum + selectedStores.reduce(
+          (storeSum, loja) => storeSum + Number(item.planoDistribuidoLojas?.[loja] || 0),
+          0
+        );
+      }
+
+      return sum + Number(item.plano || 0);
+    }, 0);
 
     // Se não há filtros ativos, usa os dados originais
-    const isFiltered = filters.familia !== 'TODAS' ||
-                       filters.grupo !== 'TODAS' ||
-                       filters.colecao !== 'TODAS' ||
-                       filters.linha !== 'TODAS' ||
-                       filters.referencia !== 'TODAS';
+    const isFiltered = hasFilterValue(filters.familia) ||
+                       hasFilterValue(filters.grupo) ||
+                       hasFilterValue(filters.colecao) ||
+                       hasFilterValue(filters.linha) ||
+                       hasFilterValue(filters.referencia) ||
+                       hasFilterValue(filters.empresa);
 
     if (!isFiltered) {
       return {
@@ -284,15 +301,33 @@ function App() {
       };
     }
 
-    // Estimativa proporcional da venda 2025 baseada no filtro
-    const proporcao = totalPlano / (totalPlanoFinal || kpiData.plano2026 || 1);
-    const vendaEstimada = Math.round(kpiData.venda2025 * proporcao);
+    const vendaBaseFiltrada = dadosFiltrados.reduce((sum, item) => sum + Number(item.vendaBase || 0), 0);
+    let venda2025 = vendaBaseFiltrada;
+
+    if (selectedStores.length > 0 && historicoVendasData.length > 0) {
+      const familiasHistoricas = new Set(
+        dadosFiltrados.map(item => normalizeText(item.familiaHist || item.familia)).filter(Boolean)
+      );
+      const refsFiltradas = new Set(
+        dadosFiltrados.map(item => normalizeText(item.ref)).filter(Boolean)
+      );
+
+      const vendaLoja = historicoVendasData
+        .filter(item => familiasHistoricas.has(normalizeText(item.familia)))
+        .filter(item => refsFiltradas.size === 0 || refsFiltradas.has(normalizeText(item.ref)))
+        .filter(item => matchesFilterValue(item.empresa, filters.empresa))
+        .filter(item => matchesFilterValue(item.grupo, filters.grupo))
+        .filter(item => matchesFilterValue(item.ref, filters.referencia, 'includes'))
+        .reduce((sum, item) => sum + Number(item.valor || 0), 0);
+
+      if (vendaLoja > 0) venda2025 = vendaLoja;
+    }
 
     return {
       plano2026: totalPlano,
-      venda2025: vendaEstimada
+      venda2025
     };
-  }, [dadosFiltrados, filters, kpiData, totalPlanoFinal]);
+  }, [dadosFiltrados, filters, kpiData, historicoVendasData]);
 
   // Calcular dados agregados baseado nos dados filtrados
   const dadosAgregados = useMemo(() => {
@@ -360,12 +395,12 @@ function App() {
   }, [dadosFiltrados]);
 
   const dados2025Filtrados = useMemo(() => {
-    const has2025Filters = filters.familia !== 'TODAS' ||
-                            filters.grupo !== 'TODAS' ||
-                            filters.colecao !== 'TODAS' ||
-                            filters.linha !== 'TODAS' ||
-                            filters.referencia !== 'TODAS' ||
-                            filters.empresa !== 'TODAS';
+    const has2025Filters = hasFilterValue(filters.familia) ||
+                            hasFilterValue(filters.grupo) ||
+                            hasFilterValue(filters.colecao) ||
+                            hasFilterValue(filters.linha) ||
+                            hasFilterValue(filters.referencia) ||
+                            hasFilterValue(filters.empresa);
 
     if (!has2025Filters) {
       return {
@@ -386,16 +421,16 @@ function App() {
         familiasHistoricas.has(normalizeText(item.familia))
       );
 
-      if (filters.grupo !== 'TODAS') {
-        historico = historico.filter(item => normalizeText(item.grupo) === normalizeText(filters.grupo));
+      if (hasFilterValue(filters.grupo)) {
+        historico = historico.filter(item => matchesFilterValue(item.grupo, filters.grupo));
       }
 
-      if (filters.referencia !== 'TODAS') {
-        historico = historico.filter(item => String(item.ref || '').includes(filters.referencia));
+      if (hasFilterValue(filters.referencia)) {
+        historico = historico.filter(item => matchesFilterValue(item.ref, filters.referencia, 'includes'));
       }
 
-      if (filters.empresa !== 'TODAS') {
-        historico = historico.filter(item => normalizeText(item.empresa) === normalizeText(filters.empresa));
+      if (hasFilterValue(filters.empresa)) {
+        historico = historico.filter(item => matchesFilterValue(item.empresa, filters.empresa));
       }
 
       const totalHistorico = historico.reduce((sum, item) => sum + Number(item.valor || 0), 0);
@@ -485,13 +520,13 @@ function App() {
   }, [kpiFiltrado, dadosAgregados, dadosFiltrados, mesProducaoData]);
 
   // Verificar se há filtros ativos
-  const hasActiveFilters = filters.familia !== 'TODAS' ||
-                           filters.grupo !== 'TODAS' ||
-                           filters.colecao !== 'TODAS' ||
-                           filters.linha !== 'TODAS' ||
-                           filters.referencia !== 'TODAS' ||
-                           filters.empresa !== 'TODAS' ||
-                           filters.mes !== 'TODOS';
+  const hasActiveFilters = hasFilterValue(filters.familia) ||
+                           hasFilterValue(filters.grupo) ||
+                           hasFilterValue(filters.colecao) ||
+                           hasFilterValue(filters.linha) ||
+                           hasFilterValue(filters.referencia) ||
+                           hasFilterValue(filters.empresa) ||
+                           hasFilterValue(filters.mes);
 
   if (!dashboardData) {
     return (

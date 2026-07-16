@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { hasFilterValue, matchesFilterValue } from '../utils/filterUtils';
 
 /**
  * Tabela de Conferência/Auditoria
@@ -106,18 +107,22 @@ const AuditTable = ({ data = [], filters = {} }) => {
     let resultado = [...data];
 
     // Filtro por família
-    if (filters.familia && filters.familia !== 'TODAS') {
-      resultado = resultado.filter(item => item.familia === filters.familia);
+    if (hasFilterValue(filters.familia)) {
+      resultado = resultado.filter(item => matchesFilterValue(item.familia, filters.familia));
     }
 
     // Filtro por linha
-    if (filters.linha && filters.linha !== 'TODAS') {
-      resultado = resultado.filter(item => item.linha === filters.linha);
+    if (hasFilterValue(filters.linha)) {
+      resultado = resultado.filter(item => matchesFilterValue(item.linha, filters.linha));
     }
 
     // Filtro por grupo
-    if (filters.grupo && filters.grupo !== 'TODAS') {
-      resultado = resultado.filter(item => item.grupo === filters.grupo);
+    if (hasFilterValue(filters.grupo)) {
+      resultado = resultado.filter(item => matchesFilterValue(item.grupo, filters.grupo));
+    }
+
+    if (hasFilterValue(filters.referencia)) {
+      resultado = resultado.filter(item => matchesFilterValue(item.ref, filters.referencia, 'includes'));
     }
 
     // Filtro por busca

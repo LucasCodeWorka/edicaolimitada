@@ -85,8 +85,7 @@ export const exportPlanoEdicaoLimitada = (dados, filename = 'plano_edicao_limita
     'Tamanho': item.tam || item.TAM,
     'Família': item.familia || item.FAMILIA,
     'Grupo': item.grupo || item.GRUPO,
-    'Plano Original': item.planoOriginal || item.QTD_PROJETADA || 0,
-    'Plano Final': item.plano || 0,
+    'Plano Total': item.plano || item.QTD_PROJETADA || 0,
     'Regra Aplicada': item.regraAplicada || '-',
   }));
 
@@ -155,8 +154,48 @@ const isLoveAppealAllowedSku = (sku) => {
   return !allowed || allowed.has(normalizeKey(sku.tam || sku.tamanho));
 };
 
+const stripInternalExportColumns = (rows, lojasVisiveis = null) => {
+  const visibleStores = Array.isArray(lojasVisiveis) && lojasVisiveis.length > 0
+    ? lojasVisiveis
+    : null;
+  const metadataColumns = [
+    'FamÃƒÂ­lia',
+    'FamÃ­lia',
+    'ReferÃƒÂªncia',
+    'ReferÃªncia',
+    'Cor',
+    'Tamanho',
+    'Grupo',
+    'Subgrupo'
+  ];
+  const internalColumns = new Set([
+    ...metadataColumns,
+    'Plano Original',
+    'Plano Total',
+    'Fonte ParticipaÃƒÂ§ÃƒÂ£o',
+    'Fonte ParticipaÃ§Ã£o'
+  ]);
+
+  return rows.map((row) => {
+    const clean = {};
+
+    metadataColumns.forEach((column) => {
+      if (Object.prototype.hasOwnProperty.call(row, column)) {
+        clean[column] = row[column];
+      }
+    });
+
+    const storeColumns = visibleStores || Object.keys(row).filter(column => !internalColumns.has(column));
+    storeColumns.forEach((loja) => {
+      clean[loja] = Number(row[loja] || 0);
+    });
+
+    clean['Plano Total'] = storeColumns.reduce((sum, loja) => sum + Number(row[loja] || 0), 0);
+    return clean;
+  });
+};
+
 const roundBusinessValue = (valor) => {
-  if (valor <= 0) return 0;
   if (valor < 1) return 1;
   if (valor < 1.5) return 1;
   if (valor < 2) return 2;
@@ -715,7 +754,10 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
   return data;
 };
 
-export const exportComparativoDetalhado = (planoData, comparativoData, filename = 'plano_detalhado_pcp') => {
-  const data = buildComparativoDetalhadoRows(planoData, comparativoData);
+export const exportComparativoDetalhado = (planoData, comparativoData, filename = 'plano_detalhado_pcp', options = {}) => {
+  const data = stripInternalExportColumns(
+    buildComparativoDetalhadoRows(planoData, comparativoData),
+    options.lojasVisiveis
+  );
   exportToExcel(data, filename, 'Plano PCP');
 };

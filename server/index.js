@@ -9,7 +9,9 @@ import {
   getLatestCacheRun,
   refreshPlanningCache,
   getGrupoSubgrupoProdutos,
-  getSpecialFamilyBaseRows
+  getSpecialFamilyBaseRows,
+  getReferencePlanningRows,
+  getFamilyReferenceRows
 } from './cacheRepository.js';
 import { buildDashboardFromSales } from './dashboardBuilder.js';
 import {
@@ -28,6 +30,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const dashboardCache = new Map();
+const ADDITIONAL_REFERENCE_BASE_ROWS = ['503810'];
+const CURVE_2026_REFERENCE_ROWS = ['211303', '211703', '136121', '136221', '136910'];
 
 function normalizeOption(value, fallback = 'SEM INFO') {
   const text = String(value || '').trim();
@@ -135,7 +139,10 @@ app.get('/api/dashboard-data', async (req, res) => {
     console.log('[dashboard-data] source=db cacheKey:', cacheKey, 'hasCache:', dashboardCache.has(cacheKey), 'refresh:', req.query.refresh, 'needsRefresh:', needsRefresh);
 
     if (needsRefresh) {
-      const rows = await getCachedPlanningRows();
+      const rows = [
+        ...await getCachedPlanningRows(),
+        ...await getReferencePlanningRows({ referencias: ADDITIONAL_REFERENCE_BASE_ROWS })
+      ];
 
       if (rows.length === 0) {
         res.status(409).json({
@@ -150,7 +157,11 @@ app.get('/api/dashboard-data', async (req, res) => {
         .filter(cod => cod && cod !== '');
       const grupoSubgrupoMap = await getGrupoSubgrupoProdutos(codProdutosPlano);
       const specialBaseRows = await getSpecialFamilyBaseRows();
-      const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap, specialBaseRows });
+      const curve2026Rows = await getFamilyReferenceRows({
+        referencias: CURVE_2026_REFERENCE_ROWS,
+        colecoes: ['INVERNO 26', 'VERAO 26']
+      });
+      const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap, specialBaseRows, curve2026Rows });
 
       const codProdutos = dashboard.planoEdicaoLimitadaData
         .map(sku => sku.codProduto)

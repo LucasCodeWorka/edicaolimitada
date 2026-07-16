@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, X, Expand, Minimize2, Calculator, Download } from 'lucide-react';
 import { exportComparativoLojas, exportComparativoDetalhado } from '../utils/exportExcel';
+import { hasFilterValue, matchesFilterValue } from '../utils/filterUtils';
 
 // Lojas excluídas para famílias de tamanhos maiores (PLUS)
 const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'JOKEY', 'ECOMMERCE'];
@@ -87,15 +88,15 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     let resultado = [...familiasOriginal];
 
     // Filtrar por família
-    if (filters.familia && filters.familia !== 'TODAS') {
-      resultado = resultado.filter(f => f.nome === filters.familia);
+    if (hasFilterValue(filters.familia)) {
+      resultado = resultado.filter(f => matchesFilterValue(f.nome, filters.familia));
     }
 
     // Filtrar por linha (usando mapeamento família→linha)
-    if (filters.linha && filters.linha !== 'TODAS') {
+    if (hasFilterValue(filters.linha)) {
       resultado = resultado.filter(f => {
         const linhaDoItem = familiaLinhaMap[f.nome] || '';
-        return linhaDoItem === filters.linha;
+        return matchesFilterValue(linhaDoItem, filters.linha);
       });
     }
 
@@ -104,11 +105,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
 
   // Filtrar lojas baseado no filtro de empresa
   const lojasFiltradas = useMemo(() => {
-    if (filters.empresa && filters.empresa !== 'TODAS') {
-      const idx = lojas.indexOf(filters.empresa);
-      if (idx >= 0) {
-        return [filters.empresa];
-      }
+    if (hasFilterValue(filters.empresa)) {
+      const selectedStores = lojas.filter(loja => matchesFilterValue(loja, filters.empresa));
+      if (selectedStores.length > 0) return selectedStores;
     }
     return lojas;
   }, [lojas, filters.empresa]);
@@ -120,26 +119,45 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
 
   const isLojaFiltrada = lojasFiltradas.length !== lojas.length;
 
+  const planoFiltradoMatriz = useMemo(() => {
+    return planoEdicaoLimitadaData.filter(item => (
+      item.colecao === 'VERAO 27' &&
+      matchesFilterValue(item.familia, filters.familia) &&
+      matchesFilterValue(familiaLinhaMap[item.familia], filters.linha) &&
+      matchesFilterValue(item.grupo, filters.grupo) &&
+      matchesFilterValue(item.ref, filters.referencia, 'includes')
+    ));
+  }, [planoEdicaoLimitadaData, filters, familiaLinhaMap]);
+
   const planoSkuPorFamilia = useMemo(() => {
-    return planoEdicaoLimitadaData
-      .filter(item => item.colecao === 'VERAO 27')
+    return planoFiltradoMatriz
       .reduce((acc, item) => {
         const familia = item.familia || 'OUTROS';
         acc[familia] = (acc[familia] || 0) + (item.plano || 0);
         return acc;
       }, {});
-  }, [planoEdicaoLimitadaData]);
+  }, [planoFiltradoMatriz]);
+
+  const planoLojaPorFamilia = useMemo(() => {
+    return planoFiltradoMatriz.reduce((acc, item) => {
+      const familia = item.familia || 'OUTROS';
+      if (!acc[familia]) acc[familia] = {};
+      addLojaTotals(acc[familia], item.planoDistribuidoLojas || {});
+      return acc;
+    }, {});
+  }, [planoFiltradoMatriz]);
 
   // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
   const familiasComPlano = useMemo(
-    () => familiasFiltradas.filter(familia => soma(familia.plano2026) > 0),
-    [familiasFiltradas]
+    () => familiasFiltradas
+      .filter(familia => (planoSkuPorFamilia[familia.nome] || 0) > 0),
+    [familiasFiltradas, planoSkuPorFamilia]
   );
 
   const familias = familiasComPlano.map(familia => ({
     ...familia,
     plano2026Original: familia.plano2026,
-    plano2026: familia.plano2026  // Sem ajuste
+    plano2026: lojas.map(loja => planoLojaPorFamilia[familia.nome]?.[loja] ?? familia.plano2026[lojas.indexOf(loja)] ?? 0)
   }));
 
   // Esta matriz compara o plano contra a base propria de cada familia/loja.
@@ -204,8 +222,8 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
 
   // Buscar SKUs de uma família agrupados por ref > cor > tam
   const getSkusHierarquia = (familiaName) => {
-    const skus = planoEdicaoLimitadaData
-      .filter(item => item.familia === familiaName && item.colecao === 'VERAO 27');
+    const skus = planoFiltradoMatriz
+      .filter(item => item.familia === familiaName);
 
     const refs = {};
     skus.forEach(sku => {
@@ -277,7 +295,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     const foiAjustado = false;
 
     const skusDetalhados = planoEdicaoLimitadaData
-      .filter(item => item.familia === familia.nome && item.colecao === 'VERAO 27')
+      .filter(item => (
+        item.familia === familia.nome &&
+        item.colecao === 'VERAO 27' &&
+        matchesFilterValue(item.grupo, filters.grupo) &&
+        matchesFilterValue(item.ref, filters.referencia, 'includes')
+      ))
       .map(item => ({
         ref: item.ref,
         cor: item.cor,
@@ -355,7 +378,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
               Resumo
             </button>
             <button
-              onClick={() => exportComparativoDetalhado(planoEdicaoLimitadaData, data, 'plano_detalhado_pcp')}
+              onClick={() => exportComparativoDetalhado(
+                planoFiltradoMatriz,
+                data,
+                'plano_detalhado_pcp',
+                { lojasVisiveis: lojasFiltradas }
+              )}
               className="flex items-center gap-1 px-2 py-1 bg-teal-600 hover:bg-teal-500 text-white text-[11px] rounded transition-colors border border-teal-400"
               title="Exportar nível SKU detalhado para PCP"
             >

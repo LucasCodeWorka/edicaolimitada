@@ -19,6 +19,7 @@ const fmtMonthPlan = [
 
 const SPECIAL_INVERNO26_FAMILIES = new Set(['NOIVAS', 'LOVE APPEAL']);
 const SPECIAL_INVERNO26_CURVE_FAMILIES = new Set(['RENDAS']);
+const SPECIAL_2026_BASE_FAMILIES = new Set(['CETIM', 'BREEZE']);
 const SPECIAL_MONTH_DEPARA = {
   1: 'JULHO',
   2: 'AGOSTO',
@@ -29,7 +30,9 @@ const SPECIAL_MONTH_DEPARA = {
 };
 
 const SPECIAL_SUBGROUP_DEPARA = {
-  'LOVE APPEAL|CALCA|CALCINHA STRING': 'CALCINHA FIO DENTAL'
+  'LOVE APPEAL|CALCA|CALCINHA STRING': 'CALCINHA FIO DENTAL',
+  'KISS ME|TOP|TOP': 'SUTIA CROPPED',
+  'KISS ME|TOP|SEM INFO': 'SUTIA CROPPED'
 };
 
 const LOVE_APPEAL_ALLOWED_SIZES = {
@@ -117,6 +120,50 @@ function roundToTotal(items, getValue, targetTotal) {
   return items.map((item, index) => values.get(index));
 }
 
+function roundPositiveToAtLeastOne(items, getValue, targetTotal) {
+  const prepared = items.map((item, index) => ({
+    item,
+    index,
+    raw: Number(getValue(item) || 0)
+  }));
+  const positiveRows = prepared.filter(row => row.raw > 0);
+
+  if (positiveRows.length === 0 || targetTotal <= 0) {
+    return items.map(() => 0);
+  }
+
+  const totalPositiveRaw = positiveRows.reduce((sum, row) => sum + row.raw, 0);
+  if (totalPositiveRaw <= 0) {
+    return items.map(() => 0);
+  }
+
+  if (targetTotal < positiveRows.length) {
+    const values = new Map(positiveRows.map(row => [row.index, 1]));
+    return items.map((item, index) => values.get(index) || 0);
+  }
+
+  const extraTarget = targetTotal - positiveRows.length;
+  const preparedExtra = positiveRows.map(row => {
+    const rawExtra = extraTarget * (row.raw / totalPositiveRaw);
+    const baseExtra = Math.floor(rawExtra);
+    return {
+      ...row,
+      base: 1 + baseExtra,
+      fraction: rawExtra - baseExtra
+    };
+  });
+
+  let remaining = targetTotal - preparedExtra.reduce((sum, row) => sum + row.base, 0);
+  preparedExtra.sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+
+  const values = new Map();
+  preparedExtra.forEach((row, index) => {
+    values.set(row.index, row.base + (index < remaining ? 1 : 0));
+  });
+
+  return items.map((item, index) => values.get(index) || 0);
+}
+
 function normalizeName(value, fallback = 'SEM INFO') {
   const text = String(value || '').trim();
   return text || fallback;
@@ -138,6 +185,22 @@ function groupSum(rows, key, valueKey = 'plano') {
   });
   return Array.from(map, ([nome, valor]) => ({ nome, valor }))
     .sort((a, b) => b.valor - a.valor);
+}
+
+function buildFamilyGroupSubgroupTotals(rows, familiaKey) {
+  const totals = {};
+  const family = normalizeName(familiaKey).toUpperCase();
+
+  rows.forEach((row) => {
+    if (normalizeName(row.familia).toUpperCase() !== family) return;
+
+    const grupo = normalizeName(row.grupo).toUpperCase();
+    const subgrupo = normalizeName(row.subgrupo).toUpperCase();
+    const key = `${family}|${grupo}|${subgrupo}`;
+    totals[key] = (totals[key] || 0) + Number(row.venda || 0);
+  });
+
+  return totals;
 }
 
 function getSkuGrupoSubgrupo(sku, grupoSubgrupoMap = {}) {
@@ -480,6 +543,67 @@ function mergeMissingSizeWeights(primaryWeights, fallbackWeights) {
   return result;
 }
 
+function extendMissingEdgeSizeWeights(weights) {
+  const result = new Map(weights);
+  const sortedSizes = sortSizes([...result.keys()]);
+  const positiveIndexes = sortedSizes
+    .map((size, index) => ({ size, index, value: Number(result.get(size) || 0) }))
+    .filter(row => row.value > 0);
+
+  if (positiveIndexes.length === 0) return result;
+
+  const firstPositive = positiveIndexes[0];
+  for (let index = firstPositive.index - 1, step = 1; index >= 0; index -= 1, step += 1) {
+    const size = sortedSizes[index];
+    if (Number(result.get(size) || 0) > 0) continue;
+    result.set(size, firstPositive.value * Math.pow(0.5, step));
+  }
+
+  const lastPositive = positiveIndexes[positiveIndexes.length - 1];
+  for (let index = lastPositive.index + 1, step = 1; index < sortedSizes.length; index += 1, step += 1) {
+    const size = sortedSizes[index];
+    if (Number(result.get(size) || 0) > 0) continue;
+    result.set(size, lastPositive.value * Math.pow(0.5, step));
+  }
+
+  return result;
+}
+
+function capEdgeSizeWeights(weights) {
+  const result = new Map(weights);
+  const sortedSizes = sortSizes([...result.keys()]);
+  const positiveSizes = sortedSizes.filter(size => Number(result.get(size) || 0) > 0);
+
+  if (positiveSizes.length < 2) return result;
+
+  const firstSize = positiveSizes[0];
+  const secondSize = positiveSizes[1];
+  const firstCap = Number(result.get(secondSize) || 0) * 0.5;
+  if (firstCap > 0) {
+    result.set(firstSize, Math.min(Number(result.get(firstSize) || 0), firstCap));
+  }
+
+  const lastSize = positiveSizes[positiveSizes.length - 1];
+  const previousSize = positiveSizes[positiveSizes.length - 2];
+  const lastCap = Number(result.get(previousSize) || 0) * 0.5;
+  if (lastCap > 0) {
+    result.set(lastSize, Math.min(Number(result.get(lastSize) || 0), lastCap));
+  }
+
+  return result;
+}
+
+function getExtendedSizeWeight(sizeTotals, size, allSizes, { preferDirect = true } = {}) {
+  const sizeKey = normalizeName(size).toUpperCase();
+  const direct = Number(sizeTotals.get(sizeKey) || 0);
+  if (preferDirect && direct > 0) return direct;
+
+  const candidateSizes = [...new Set([...allSizes, sizeKey].map(value => normalizeName(value).toUpperCase()))];
+  const extended = extendMissingEdgeSizeWeights(mapHistoricalSizesToNewSizes(candidateSizes, sizeTotals));
+  const weighted = preferDirect ? extended : capEdgeSizeWeights(extended);
+  return Number(weighted.get(sizeKey) || 0);
+}
+
 function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, familiaHist, rows, familiaNova, historicalFamilyLineMap) {
   const mapping = new Map();
   const grupos = new Map();
@@ -692,7 +816,7 @@ function distributeSkusBySkuWeight(skus, targetTotal, vendaBaseTotal, getWeight)
     return { planoPorSku, vendaBasePorSku };
   }
 
-  const planoValues = roundToTotal(
+  const planoValues = roundPositiveToAtLeastOne(
     rows,
     row => targetTotal * (row.weight / totalWeight),
     targetTotal
@@ -719,10 +843,15 @@ function buildReferenceSizeWeightGetter(skus, rows, familiaHist, fallbackSizeTot
   const totalsByKey = new Map();
   const refTotalsByKey = new Map();
   const averageTotalsByRefKey = new Map();
+  const sizesByRef = new Map();
 
   skus.forEach((sku) => {
     const refKey = normalizeName(sku.referencia).toUpperCase();
     const corKey = normalizeName(sku.cor).toUpperCase();
+    const sizeKey = normalizeName(sku.tamanho).toUpperCase();
+
+    if (!sizesByRef.has(refKey)) sizesByRef.set(refKey, new Set());
+    sizesByRef.get(refKey).add(sizeKey);
 
     getColorCurveFallbacks(corKey).forEach((candidateCor) => {
       const key = `${refKey}|${candidateCor}`;
@@ -743,22 +872,23 @@ function buildReferenceSizeWeightGetter(skus, rows, familiaHist, fallbackSizeTot
   return (sku) => {
     const refKey = normalizeName(sku.referencia).toUpperCase();
     const sizeKey = normalizeName(sku.tamanho).toUpperCase();
+    const allRefSizes = [...(sizesByRef.get(refKey) || new Set([sizeKey]))];
 
     for (const candidateCor of getColorCurveFallbacks(sku.cor)) {
       const totals = totalsByKey.get(`${refKey}|${candidateCor}`);
-      const value = Number(totals?.get(sizeKey) || 0);
+      const value = getExtendedSizeWeight(totals || new Map(), sizeKey, allRefSizes);
       if (value > 0) return value;
     }
 
     const averageTotals = averageTotalsByRefKey.get(refKey);
-    const averageValue = Number(averageTotals?.get(sizeKey) || 0);
+    const averageValue = getExtendedSizeWeight(averageTotals || new Map(), sizeKey, allRefSizes);
     if (averageValue > 0) return averageValue;
 
     const refTotals = refTotalsByKey.get(refKey);
-    const refValue = Number(refTotals?.get(sizeKey) || 0);
+    const refValue = getExtendedSizeWeight(refTotals || new Map(), sizeKey, allRefSizes);
     if (refValue > 0) return refValue;
 
-    return Number(fallbackSizeTotals.get(sizeKey) || 0);
+    return getExtendedSizeWeight(fallbackSizeTotals, sizeKey, allRefSizes, { preferDirect: false });
   };
 }
 
@@ -784,7 +914,7 @@ function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySi
   const newSizes = [...skusBySize.keys()];
   const primaryWeights = mapHistoricalSizesToNewSizes(newSizes, primarySizeTotals);
   const fallbackWeights = mapHistoricalSizesToNewSizes(newSizes, fallbackSizeTotals);
-  const weights = mergeMissingSizeWeights(primaryWeights, fallbackWeights);
+  const weights = extendMissingEdgeSizeWeights(mergeMissingSizeWeights(primaryWeights, fallbackWeights));
   const sizeRows = newSizes.map(size => ({ size, weight: Number(weights.get(size) || 0) }));
   const totalWeight = sizeRows.reduce((sum, row) => sum + row.weight, 0);
 
@@ -796,7 +926,7 @@ function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySi
     return { planoPorSku, vendaBasePorSku };
   }
 
-  const planoPorTamanho = roundToTotal(
+  const planoPorTamanho = roundPositiveToAtLeastOne(
     sizeRows,
     row => targetTotal * (row.weight / totalWeight),
     targetTotal
@@ -806,7 +936,7 @@ function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySi
     const skusSize = skusBySize.get(row.size) || [];
     const planoTamanho = planoPorTamanho[index] || 0;
     const baseTamanho = vendaBaseTotal * (row.weight / totalWeight);
-    const planoSkuValues = roundToTotal(
+    const planoSkuValues = roundPositiveToAtLeastOne(
       skusSize,
       () => row.weight > 0 && skusSize.length > 0 ? planoTamanho / skusSize.length : 0,
       planoTamanho
@@ -924,7 +1054,7 @@ function ajustarDistribuicaoPortelle(familiaNova, planoPorLoja, planoTotal) {
 
 // Funcao principal: constroi dashboard a partir das vendas do cache
 // usando SKUs do Excel e regras de de-para
-export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBaseRows = [] } = {}) {
+export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBaseRows = [], curve2026Rows = [] } = {}) {
   // Carregar SKUs do Excel e de-para
   const skusExcel = loadSkusVerao27();
   const depara = loadDeparaFamilias();
@@ -953,6 +1083,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
   const vendasPorSubgrupo = {};
   const lojas = new Set();
   const specialRowsByFamily = new Map();
+  const curveRowsByFamily = new Map();
   const specialMonthPlan = {};
 
   for (const row of rows) {
@@ -1008,6 +1139,21 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
       };
     }
     vendasPorFamiliaRef[keyFR].venda += Number(row.venda || 0);
+  }
+
+  for (const row of curve2026Rows) {
+    const familia = normalizeName(row.familia).toUpperCase();
+    if (!SPECIAL_2026_BASE_FAMILIES.has(familia)) continue;
+
+    const colecao = normalizeName(row.colecao).toUpperCase();
+    const continuidade = normalizeName(row.continuidade, '').toUpperCase();
+    const useRow =
+      (familia === 'CETIM' && colecao === 'INVERNO 26' && continuidade === 'EDICAO LIMITADA') ||
+      (familia === 'BREEZE' && colecao === 'VERAO 26' && continuidade === 'PERMANENTE');
+
+    if (!useRow) continue;
+    if (!curveRowsByFamily.has(familia)) curveRowsByFamily.set(familia, []);
+    curveRowsByFamily.get(familia).push(row);
   }
 
   for (const row of specialBaseRows) {
@@ -1104,28 +1250,47 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
     const temDePara = ehDePara(familiaNova);
     const familiaKey = normalizeName(familiaNova).toUpperCase();
     const specialRowsFamilia = specialRowsByFamily.get(familiaKey) || [];
+    const curveRowsFamilia = curveRowsByFamily.get(familiaKey) || [];
     const usaBaseInverno26 = SPECIAL_INVERNO26_FAMILIES.has(familiaKey) && specialRowsFamilia.length > 0;
     const usaCurvaInverno26 = SPECIAL_INVERNO26_CURVE_FAMILIES.has(familiaKey) && specialRowsFamilia.length > 0;
+    const usaBase2026 = SPECIAL_2026_BASE_FAMILIES.has(familiaKey) && curveRowsFamilia.length > 0;
+    const usaCurva2026 = usaBase2026;
+    const usaCurvaEspecial = usaBaseInverno26 || usaCurvaInverno26 || usaCurva2026;
 
     // Buscar vendas da familia historica
     const vendasPorLoja = {};
     let vendaTotalFamilia = 0;
 
-    for (const loja of lojasArray) {
-      const key = `${usaBaseInverno26 ? familiaKey : familiaHist}|${loja}`;
-      const venda = vendasPorFamiliaLoja[key] || 0;
-      vendasPorLoja[loja] = venda;
-      vendaTotalFamilia += venda;
+    if (usaBase2026) {
+      for (const loja of lojasArray) {
+        vendasPorLoja[loja] = 0;
+      }
+
+      curveRowsFamilia.forEach((row) => {
+        const loja = normalizeStoreName(row.empresa);
+        const venda = Number(row.venda || 0);
+        vendasPorLoja[loja] = (vendasPorLoja[loja] || 0) + venda;
+        vendaTotalFamilia += venda;
+      });
+    } else {
+      for (const loja of lojasArray) {
+        const key = `${usaBaseInverno26 ? familiaKey : familiaHist}|${loja}`;
+        const venda = vendasPorFamiliaLoja[key] || 0;
+        vendasPorLoja[loja] = venda;
+        vendaTotalFamilia += venda;
+      }
     }
 
     // Calcular plano usando regras
-    const resultado = usaBaseInverno26
+    const resultado = usaBaseInverno26 || usaBase2026
       ? {
           plano: Math.round(vendaTotalFamilia * (1 + CRESCIMENTO_PADRAO)),
-          regra: 'base_inverno26',
+          regra: usaBase2026 ? 'base_2026' : 'base_inverno26',
           baseEspecial: vendaTotalFamilia,
           crescimento: CRESCIMENTO_PADRAO,
-          obs: 'Base Inverno 26 jan-jun/2026 + 10%, aberta por grupo/subgrupo/tamanho/loja'
+          obs: usaBase2026
+            ? 'Base 2026 + 10%, aberta por grupo/subgrupo/tamanho/loja'
+            : 'Base Inverno 26 jan-jun/2026 + 10%, aberta por grupo/subgrupo/tamanho/loja'
         }
       : calcularPlanoFamilia(familiaNova, vendaTotalFamilia);
     const planoTotal = resultado.plano;
@@ -1233,14 +1398,14 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
     const regraFamiliaTravaTotal = ['base_especial', 'fixo', 'cap'].includes(resultado.regra);
 
     if (regraFamiliaTravaTotal) {
-      const rowsBaseFamilia = (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
+      const rowsBaseFamilia = usaCurva2026 ? curveRowsFamilia : (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
       const baseTotalSku = resultado.baseEspecial !== undefined ? resultado.baseEspecial : vendaTotalFamilia;
-      const primarySizeTotals = getFamilySizeTotals(rowsBaseFamilia, usaBaseInverno26 ? familiaKey : familiaHist);
+      const primarySizeTotals = getFamilySizeTotals(rowsBaseFamilia, usaCurvaEspecial ? familiaKey : familiaHist);
       const fallbackSizeTotals = getLineSizeTotals(rowsBaseFamilia, getLinha(familiaNova), historicalFamilyLineMap);
       const getReferenceWeight = buildReferenceSizeWeightGetter(
         skusFamilia,
         rowsBaseFamilia,
-        (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist,
+        usaCurvaEspecial ? familiaKey : familiaHist,
         primarySizeTotals.size > 0 ? primarySizeTotals : fallbackSizeTotals
       );
       const hasCurve = skusFamilia.some(sku => getReferenceWeight(sku) > 0);
@@ -1264,12 +1429,14 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
         });
       });
     } else {
-      const rowsBaseFamilia = (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
-      const vendasGrupoSubgrupoBase = vendasPorFamiliaGrupoSubgrupo;
+      const rowsBaseFamilia = usaCurva2026 ? curveRowsFamilia : (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
+      const vendasGrupoSubgrupoBase = usaBase2026
+        ? buildFamilyGroupSubgroupTotals(rowsBaseFamilia, familiaKey)
+        : vendasPorFamiliaGrupoSubgrupo;
       const subgroupMapping = buildSubgroupMapping(
         skusFamilia,
         vendasGrupoSubgrupoBase,
-        (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist,
+        usaCurvaEspecial ? familiaKey : familiaHist,
         rowsBaseFamilia,
         familiaNova,
         historicalFamilyLineMap
@@ -1295,10 +1462,10 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
           subgrupoHist: subgrupo,
           matchTipo: 'SEM_MATCH'
         };
-        const histKey = `${usaBaseInverno26 ? familiaKey : familiaHist}|${mapped.grupoHist}|${mapped.subgrupoHist}`;
+        const histKey = `${(usaBaseInverno26 || usaBase2026) ? familiaKey : familiaHist}|${mapped.grupoHist}|${mapped.subgrupoHist}`;
         const vendaBaseSubgrupo = mapped.vendaBaseOverride !== undefined
           ? Number(mapped.vendaBaseOverride || 0)
-          : Number(vendasPorFamiliaGrupoSubgrupo[histKey] || 0);
+          : Number(vendasGrupoSubgrupoBase[histKey] || 0);
 
         if (vendaBaseSubgrupo <= 0) {
           gruposSemBase.push({ key, skus: skusGrupoSubgrupo, mapped });
@@ -1319,9 +1486,9 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
             skusGrupoSubgrupo.map(sku => sku.tamanho)
           );
         } else {
-          primarySizeTotals = getFamilySubgroupSizeTotals(rowsBaseFamilia, (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist, mapped.grupoHist || grupo, histSubgrupos);
+          primarySizeTotals = getFamilySubgroupSizeTotals(rowsBaseFamilia, usaCurvaEspecial ? familiaKey : familiaHist, mapped.grupoHist || grupo, histSubgrupos);
         }
-        const fallbackSizeTotals = getFamilyGroupSizeTotals(rowsBaseFamilia, (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist, mapped.grupoHist || grupo);
+        const fallbackSizeTotals = getFamilyGroupSizeTotals(rowsBaseFamilia, usaCurvaEspecial ? familiaKey : familiaHist, mapped.grupoHist || grupo);
         const distribuicao = distributeSkusBySizeTarget(
           skusGrupoSubgrupo,
           planoSubgrupo,
@@ -1341,13 +1508,13 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
       const planoRestanteSemBase = Math.max(planoTotal - planoAlocadoSubgrupos, 0);
       const vendaBaseRestanteSemBase = Math.max(vendaTotalFamilia - vendaBaseAlocadaSubgrupos, 0);
       const skusSemBase = gruposSemBase.flatMap(group => group.skus);
-      const rowsBaseSemBase = (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
-      const primarySemBase = getFamilySizeTotals(rowsBaseSemBase, (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist);
+      const rowsBaseSemBase = usaCurva2026 ? curveRowsFamilia : (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
+      const primarySemBase = getFamilySizeTotals(rowsBaseSemBase, usaCurvaEspecial ? familiaKey : familiaHist);
       const fallbackSemBase = getLineSizeTotals(rowsBaseSemBase, getLinha(familiaNova), historicalFamilyLineMap);
       const getReferenceWeight = buildReferenceSizeWeightGetter(
         skusSemBase,
         rowsBaseSemBase,
-        (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist,
+        usaCurvaEspecial ? familiaKey : familiaHist,
         primarySemBase.size > 0 ? primarySemBase : fallbackSemBase
       );
       const hasReferenceWeights = skusSemBase.some(sku => getReferenceWeight(sku) > 0);
