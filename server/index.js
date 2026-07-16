@@ -122,69 +122,65 @@ app.post('/api/cache/refresh', async (req, res) => {
 });
 
 app.get('/api/dashboard-data', async (req, res) => {
-  if (req.query.source === 'db') {
-    try {
-      const cacheKey = 'verao26-edicao-limitada-2025s2-v13'; // v13: NOIVAS/LOVE APPEAL usam Inverno 26 jan-jun/2026
-      const needsRefresh = !dashboardCache.has(cacheKey) || req.query.refresh === '1';
-      console.log('[dashboard-data] cacheKey:', cacheKey, 'hasCache:', dashboardCache.has(cacheKey), 'refresh:', req.query.refresh, 'needsRefresh:', needsRefresh);
-
-      if (needsRefresh) {
-        const rows = await getCachedPlanningRows();
-
-        if (rows.length === 0) {
-          res.status(409).json({
-            error: 'Cache do banco ainda nao foi carregado. Execute POST /api/cache/refresh primeiro.'
-          });
-          return;
-        }
-
-        const skusExcel = loadSkusVerao27();
-        const codProdutosPlano = skusExcel
-          .map(sku => sku.codProduto)
-          .filter(cod => cod && cod !== '');
-        const grupoSubgrupoMap = await getGrupoSubgrupoProdutos(codProdutosPlano);
-        const specialBaseRows = await getSpecialFamilyBaseRows();
-        const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap, specialBaseRows });
-
-        // Enriquecer SKUs com grupo/subgrupo do banco
-        const codProdutos = dashboard.planoEdicaoLimitadaData
-          .map(sku => sku.codProduto)
-          .filter(cod => cod && cod !== '');
-
-        if (codProdutos.length > 0) {
-          dashboard.planoEdicaoLimitadaData.forEach(sku => {
-            const info = grupoSubgrupoMap[sku.codProduto];
-            if (info) {
-              sku.grupo = info.grupo;
-              sku.subgrupo = info.subgrupo;
-            }
-          });
-
-          console.log('[dashboard-data] Enriquecidos', Object.keys(grupoSubgrupoMap).length, 'SKUs com grupo/subgrupo');
-        }
-
-        refreshPlanDerivedData(dashboard);
-        dashboardCache.set(cacheKey, dashboard);
-      }
-
-      res.json(dashboardCache.get(cacheKey));
-      return;
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-      return;
-    }
+  if (req.query.source && req.query.source !== 'db') {
+    res.status(400).json({
+      error: 'Fonte estatica desabilitada. Este dashboard usa somente banco/cache.'
+    });
+    return;
   }
 
-  const filePath = path.join(rootDir, 'dados_reais.json');
-  const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  try {
+    const cacheKey = 'verao26-edicao-limitada-2025s2-v14-db-only';
+    const needsRefresh = !dashboardCache.has(cacheKey) || req.query.refresh === '1';
+    console.log('[dashboard-data] source=db cacheKey:', cacheKey, 'hasCache:', dashboardCache.has(cacheKey), 'refresh:', req.query.refresh, 'needsRefresh:', needsRefresh);
 
-  data.meta = {
-    ...(data.meta || {}),
-    origem: 'arquivo-local',
-    observacao: 'Use /api/dashboard-data?source=db para gerar a primeira versao pelo banco usando mv_vendas_qtd.'
-  };
+    if (needsRefresh) {
+      const rows = await getCachedPlanningRows();
 
-  res.json(data);
+      if (rows.length === 0) {
+        res.status(409).json({
+          error: 'Cache do banco ainda nao foi carregado. Execute POST /api/cache/refresh primeiro.'
+        });
+        return;
+      }
+
+      const skusExcel = loadSkusVerao27();
+      const codProdutosPlano = skusExcel
+        .map(sku => sku.codProduto)
+        .filter(cod => cod && cod !== '');
+      const grupoSubgrupoMap = await getGrupoSubgrupoProdutos(codProdutosPlano);
+      const specialBaseRows = await getSpecialFamilyBaseRows();
+      const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap, specialBaseRows });
+
+      const codProdutos = dashboard.planoEdicaoLimitadaData
+        .map(sku => sku.codProduto)
+        .filter(cod => cod && cod !== '');
+
+      if (codProdutos.length > 0) {
+        dashboard.planoEdicaoLimitadaData.forEach(sku => {
+          const info = grupoSubgrupoMap[sku.codProduto];
+          if (info) {
+            sku.grupo = info.grupo;
+            sku.subgrupo = info.subgrupo;
+          }
+        });
+
+        console.log('[dashboard-data] Enriquecidos', Object.keys(grupoSubgrupoMap).length, 'SKUs com grupo/subgrupo');
+      }
+
+      dashboard.meta = {
+        ...(dashboard.meta || {}),
+        origem: 'banco-cache',
+        bancoOnly: true
+      };
+      refreshPlanDerivedData(dashboard);
+      dashboardCache.set(cacheKey, dashboard);
+    }
+
+    res.json(dashboardCache.get(cacheKey));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 if (fs.existsSync(distDir)) {

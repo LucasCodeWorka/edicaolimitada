@@ -287,7 +287,7 @@ export async function getSpecialFamilyBaseRows({
   startDate = '2026-01-01',
   endDate = '2026-06-30',
   colecao = 'INVERNO 26',
-  familias = ['NOIVAS', 'LOVE APPEAL']
+  familias = ['NOIVAS', 'LOVE APPEAL', 'RENDAS']
 } = {}) {
   const result = await query(`
     with classificacoes as (

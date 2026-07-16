@@ -49,6 +49,8 @@ export function loadSkusVerao27() {
     if (hUpper.includes('COD') && hUpper.includes('PRODUTO')) colMap.codProduto = idx;
     if (hUpper === 'REFERENCIA' || hUpper === 'REFERÊNCIA') colMap.referencia = idx;
     if (hUpper.includes('DESCRIC') || hUpper === 'DESCRIÇÃO') colMap.descricao = idx;
+    if (hUpper === 'GRUPO') colMap.grupo = idx;
+    if (hUpper === 'SUBGRUPO') colMap.subgrupo = idx;
     if (hUpper === 'COR') colMap.cor = idx;
     if (hUpper === 'TAMANHO') colMap.tamanho = idx;
   });
@@ -65,6 +67,8 @@ export function loadSkusVerao27() {
       codProduto: String(row[colMap.codProduto] || '').trim(),
       referencia: String(row[colMap.referencia] || '').trim(),
       descricao: String(row[colMap.descricao] || '').trim(),
+      grupo: String(row[colMap.grupo] || '').trim().toUpperCase(),
+      subgrupo: String(row[colMap.subgrupo] || '').trim().toUpperCase(),
       cor: String(row[colMap.cor] || '').trim().toUpperCase(),
       tamanho: String(row[colMap.tamanho] || '').trim().toUpperCase()
     }));

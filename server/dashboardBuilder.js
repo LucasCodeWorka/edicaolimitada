@@ -18,6 +18,7 @@ const fmtMonthPlan = [
 ];
 
 const SPECIAL_INVERNO26_FAMILIES = new Set(['NOIVAS', 'LOVE APPEAL']);
+const SPECIAL_INVERNO26_CURVE_FAMILIES = new Set(['RENDAS']);
 const SPECIAL_MONTH_DEPARA = {
   1: 'JULHO',
   2: 'AGOSTO',
@@ -142,8 +143,8 @@ function groupSum(rows, key, valueKey = 'plano') {
 function getSkuGrupoSubgrupo(sku, grupoSubgrupoMap = {}) {
   const info = grupoSubgrupoMap[sku.codProduto] || {};
   return {
-    grupo: normalizeName(info.grupo).toUpperCase(),
-    subgrupo: normalizeName(info.subgrupo).toUpperCase()
+    grupo: normalizeName(info.grupo || sku.grupo).toUpperCase(),
+    subgrupo: normalizeName(info.subgrupo || sku.subgrupo).toUpperCase()
   };
 }
 
@@ -321,6 +322,94 @@ function getFamilyGroupSizeTotals(rows, familiaHist, grupo) {
   return totals;
 }
 
+function getFamilySizeTotals(rows, familiaHist) {
+  const totals = new Map();
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+
+  rows.forEach((row) => {
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
+function getReferenceColorSizeTotals(rows, familiaHist, referencia, cor) {
+  const totals = new Map();
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const refKey = normalizeName(referencia).toUpperCase();
+  const corKey = normalizeName(cor).toUpperCase();
+
+  rows.forEach((row) => {
+    const rowRef = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    if (rowRef !== refKey) return;
+    if (normalizeName(row.cor).toUpperCase() !== corKey) return;
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
+function getReferenceSizeTotals(rows, familiaHist, referencia) {
+  const totals = new Map();
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const refKey = normalizeName(referencia).toUpperCase();
+
+  rows.forEach((row) => {
+    const rowRef = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    if (rowRef !== refKey) return;
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
+function getReferenceAverageColorSizeTotals(rows, familiaHist, referencia) {
+  const totalsByColor = new Map();
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const refKey = normalizeName(referencia).toUpperCase();
+
+  rows.forEach((row) => {
+    const rowRef = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    if (rowRef !== refKey) return;
+
+    const corKey = normalizeName(row.cor).toUpperCase();
+    if (!corKey || corKey === 'SEM INFO') return;
+    if (!totalsByColor.has(corKey)) totalsByColor.set(corKey, new Map());
+    addSizeTotal(totalsByColor.get(corKey), row.tamanho, row.venda);
+  });
+
+  const totals = new Map();
+  totalsByColor.forEach((sizeTotals) => {
+    sizeTotals.forEach((value, size) => {
+      totals.set(size, (totals.get(size) || 0) + Number(value || 0));
+    });
+  });
+
+  if (totalsByColor.size === 0) return totals;
+
+  totals.forEach((value, size) => {
+    totals.set(size, value / totalsByColor.size);
+  });
+
+  return totals;
+}
+
+function getLineSizeTotals(rows, linha, historicalFamilyLineMap) {
+  const totals = new Map();
+  const linhaKey = normalizeName(linha).toUpperCase();
+
+  rows.forEach((row) => {
+    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
 function getLineSubgroupSizeTotals(rows, linha, grupo, subgrupo, historicalFamilyLineMap) {
   const totals = new Map();
   const linhaKey = normalizeName(linha).toUpperCase();
@@ -387,10 +476,6 @@ function mergeMissingSizeWeights(primaryWeights, fallbackWeights) {
   if (total > 0) {
     return result;
   }
-
-  result.forEach((_value, size) => {
-    result.set(size, 1);
-  });
 
   return result;
 }
@@ -566,12 +651,115 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
 }
 
 function distributeBySubgroupTarget(skus, targetTotal) {
+  return new Map(skus.map(sku => [sku, 0]));
+}
+
+function distributeBySizeTargetMap(skus, targetTotal, primarySizeTotals, fallbackSizeTotals = new Map()) {
+  const distribuicao = distributeSkusBySizeTarget(
+    skus,
+    targetTotal,
+    targetTotal,
+    primarySizeTotals,
+    fallbackSizeTotals
+  );
+
+  return distribuicao.planoPorSku;
+}
+
+function distributeSkusBySkuWeight(skus, targetTotal, vendaBaseTotal, getWeight) {
+  const planoPorSku = new Map();
+  const vendaBasePorSku = new Map();
+
   if (skus.length === 0 || targetTotal <= 0) {
-    return new Map(skus.map(sku => [sku, 0]));
+    skus.forEach((sku) => {
+      planoPorSku.set(sku, 0);
+      vendaBasePorSku.set(sku, 0);
+    });
+    return { planoPorSku, vendaBasePorSku };
   }
 
-  const values = roundToTotal(skus, () => targetTotal / skus.length, targetTotal);
-  return new Map(skus.map((sku, index) => [sku, values[index]]));
+  const rows = skus.map(sku => ({
+    sku,
+    weight: Number(getWeight(sku) || 0)
+  }));
+  const totalWeight = rows.reduce((sum, row) => sum + row.weight, 0);
+
+  if (totalWeight <= 0) {
+    skus.forEach((sku) => {
+      planoPorSku.set(sku, 0);
+      vendaBasePorSku.set(sku, 0);
+    });
+    return { planoPorSku, vendaBasePorSku };
+  }
+
+  const planoValues = roundToTotal(
+    rows,
+    row => targetTotal * (row.weight / totalWeight),
+    targetTotal
+  );
+
+  rows.forEach((row, index) => {
+    const base = vendaBaseTotal * (row.weight / totalWeight);
+    planoPorSku.set(row.sku, planoValues[index] || 0);
+    vendaBasePorSku.set(row.sku, Math.round(base * 100) / 100);
+  });
+
+  return { planoPorSku, vendaBasePorSku };
+}
+
+function getColorCurveFallbacks(cor) {
+  const corKey = normalizeName(cor).toUpperCase();
+  if (corKey === 'VANILLA' || corKey === 'VANILIA') {
+    return [corKey, 'BRANCO', 'NUDE'];
+  }
+  return [corKey];
+}
+
+function buildReferenceSizeWeightGetter(skus, rows, familiaHist, fallbackSizeTotals = new Map()) {
+  const totalsByKey = new Map();
+  const refTotalsByKey = new Map();
+  const averageTotalsByRefKey = new Map();
+
+  skus.forEach((sku) => {
+    const refKey = normalizeName(sku.referencia).toUpperCase();
+    const corKey = normalizeName(sku.cor).toUpperCase();
+
+    getColorCurveFallbacks(corKey).forEach((candidateCor) => {
+      const key = `${refKey}|${candidateCor}`;
+      if (!totalsByKey.has(key)) {
+        totalsByKey.set(key, getReferenceColorSizeTotals(rows, familiaHist, refKey, candidateCor));
+      }
+    });
+
+    if (!refTotalsByKey.has(refKey)) {
+      refTotalsByKey.set(refKey, getReferenceSizeTotals(rows, familiaHist, refKey));
+    }
+
+    if (!averageTotalsByRefKey.has(refKey)) {
+      averageTotalsByRefKey.set(refKey, getReferenceAverageColorSizeTotals(rows, familiaHist, refKey));
+    }
+  });
+
+  return (sku) => {
+    const refKey = normalizeName(sku.referencia).toUpperCase();
+    const sizeKey = normalizeName(sku.tamanho).toUpperCase();
+
+    for (const candidateCor of getColorCurveFallbacks(sku.cor)) {
+      const totals = totalsByKey.get(`${refKey}|${candidateCor}`);
+      const value = Number(totals?.get(sizeKey) || 0);
+      if (value > 0) return value;
+    }
+
+    const averageTotals = averageTotalsByRefKey.get(refKey);
+    const averageValue = Number(averageTotals?.get(sizeKey) || 0);
+    if (averageValue > 0) return averageValue;
+
+    const refTotals = refTotalsByKey.get(refKey);
+    const refValue = Number(refTotals?.get(sizeKey) || 0);
+    if (refValue > 0) return refValue;
+
+    return Number(fallbackSizeTotals.get(sizeKey) || 0);
+  };
 }
 
 function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySizeTotals, fallbackSizeTotals = new Map()) {
@@ -599,41 +787,35 @@ function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySi
   const weights = mergeMissingSizeWeights(primaryWeights, fallbackWeights);
   const sizeRows = newSizes.map(size => ({ size, weight: Number(weights.get(size) || 0) }));
   const totalWeight = sizeRows.reduce((sum, row) => sum + row.weight, 0);
+
+  if (totalWeight <= 0) {
+    skus.forEach((sku) => {
+      planoPorSku.set(sku, 0);
+      vendaBasePorSku.set(sku, 0);
+    });
+    return { planoPorSku, vendaBasePorSku };
+  }
+
   const planoPorTamanho = roundToTotal(
     sizeRows,
-    row => totalWeight > 0 ? targetTotal * (row.weight / totalWeight) : targetTotal / sizeRows.length,
+    row => targetTotal * (row.weight / totalWeight),
     targetTotal
   );
 
   sizeRows.forEach((row, index) => {
     const skusSize = skusBySize.get(row.size) || [];
     const planoTamanho = planoPorTamanho[index] || 0;
-    const baseTamanho = totalWeight > 0
-      ? vendaBaseTotal * (row.weight / totalWeight)
-      : vendaBaseTotal / sizeRows.length;
-    const planoSkuValues = roundToTotal(skusSize, () => planoTamanho / skusSize.length, planoTamanho);
+    const baseTamanho = vendaBaseTotal * (row.weight / totalWeight);
+    const planoSkuValues = roundToTotal(
+      skusSize,
+      () => row.weight > 0 && skusSize.length > 0 ? planoTamanho / skusSize.length : 0,
+      planoTamanho
+    );
 
     skusSize.forEach((sku, skuIndex) => {
       planoPorSku.set(sku, planoSkuValues[skuIndex] || 0);
       vendaBasePorSku.set(sku, Math.round((baseTamanho / skusSize.length) * 100) / 100);
     });
-  });
-
-  return { planoPorSku, vendaBasePorSku };
-}
-
-function distributeSkusByFamilyTotal(skus, targetTotal, vendaBaseTotal) {
-  const planoPorSku = new Map();
-  const vendaBasePorSku = new Map();
-
-  if (skus.length === 0) {
-    return { planoPorSku, vendaBasePorSku };
-  }
-
-  const planoValues = roundToTotal(skus, () => targetTotal / skus.length, targetTotal);
-  skus.forEach((sku, index) => {
-    planoPorSku.set(sku, planoValues[index]);
-    vendaBasePorSku.set(sku, Math.round((vendaBaseTotal / skus.length) * 100) / 100);
   });
 
   return { planoPorSku, vendaBasePorSku };
@@ -831,7 +1013,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
   for (const row of specialBaseRows) {
     const loja = normalizeStoreName(row.empresa);
     const familia = normalizeName(row.familia).toUpperCase();
-    if (!SPECIAL_INVERNO26_FAMILIES.has(familia)) continue;
+    if (!SPECIAL_INVERNO26_FAMILIES.has(familia) && !SPECIAL_INVERNO26_CURVE_FAMILIES.has(familia)) continue;
 
     const grupo = normalizeName(row.grupo).toUpperCase();
     const subgrupo = normalizeName(row.subgrupo).toUpperCase();
@@ -923,6 +1105,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
     const familiaKey = normalizeName(familiaNova).toUpperCase();
     const specialRowsFamilia = specialRowsByFamily.get(familiaKey) || [];
     const usaBaseInverno26 = SPECIAL_INVERNO26_FAMILIES.has(familiaKey) && specialRowsFamilia.length > 0;
+    const usaCurvaInverno26 = SPECIAL_INVERNO26_CURVE_FAMILIES.has(familiaKey) && specialRowsFamilia.length > 0;
 
     // Buscar vendas da familia historica
     const vendasPorLoja = {};
@@ -1050,27 +1233,43 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
     const regraFamiliaTravaTotal = ['base_especial', 'fixo', 'cap'].includes(resultado.regra);
 
     if (regraFamiliaTravaTotal) {
-      const distribuicao = distributeSkusByFamilyTotal(
+      const rowsBaseFamilia = (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
+      const baseTotalSku = resultado.baseEspecial !== undefined ? resultado.baseEspecial : vendaTotalFamilia;
+      const primarySizeTotals = getFamilySizeTotals(rowsBaseFamilia, usaBaseInverno26 ? familiaKey : familiaHist);
+      const fallbackSizeTotals = getLineSizeTotals(rowsBaseFamilia, getLinha(familiaNova), historicalFamilyLineMap);
+      const getReferenceWeight = buildReferenceSizeWeightGetter(
         skusFamilia,
-        planoTotal,
-        resultado.baseEspecial !== undefined ? resultado.baseEspecial : vendaTotalFamilia
+        rowsBaseFamilia,
+        (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist,
+        primarySizeTotals.size > 0 ? primarySizeTotals : fallbackSizeTotals
       );
+      const hasCurve = skusFamilia.some(sku => getReferenceWeight(sku) > 0);
+      const distribuicao = hasCurve
+        ? distributeSkusBySkuWeight(skusFamilia, planoTotal, baseTotalSku, getReferenceWeight)
+        : {
+          planoPorSku: new Map(skusFamilia.map(sku => [sku, 0])),
+          vendaBasePorSku: new Map(skusFamilia.map(sku => [sku, 0]))
+        };
+      const matchTipoTrava = hasCurve
+        ? `${resultado.regra.toUpperCase()}_CURVA`
+        : `${resultado.regra.toUpperCase()}_SEM_CURVA`;
+
       planoPorSku = distribuicao.planoPorSku;
       vendaBasePorSku = distribuicao.vendaBasePorSku;
       skusFamilia.forEach((sku) => {
         matchPorSku.set(sku, {
           grupoHist: sku.grupo,
           subgrupoHist: sku.subgrupo,
-          matchTipo: resultado.regra.toUpperCase()
+          matchTipo: matchTipoTrava
         });
       });
     } else {
-      const rowsBaseFamilia = usaBaseInverno26 ? specialRowsFamilia : rows;
+      const rowsBaseFamilia = (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
       const vendasGrupoSubgrupoBase = vendasPorFamiliaGrupoSubgrupo;
       const subgroupMapping = buildSubgroupMapping(
         skusFamilia,
         vendasGrupoSubgrupoBase,
-        usaBaseInverno26 ? familiaKey : familiaHist,
+        (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist,
         rowsBaseFamilia,
         familiaNova,
         historicalFamilyLineMap
@@ -1120,9 +1319,9 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
             skusGrupoSubgrupo.map(sku => sku.tamanho)
           );
         } else {
-          primarySizeTotals = getFamilySubgroupSizeTotals(rowsBaseFamilia, usaBaseInverno26 ? familiaKey : familiaHist, mapped.grupoHist || grupo, histSubgrupos);
+          primarySizeTotals = getFamilySubgroupSizeTotals(rowsBaseFamilia, (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist, mapped.grupoHist || grupo, histSubgrupos);
         }
-        const fallbackSizeTotals = getFamilyGroupSizeTotals(rowsBaseFamilia, usaBaseInverno26 ? familiaKey : familiaHist, mapped.grupoHist || grupo);
+        const fallbackSizeTotals = getFamilyGroupSizeTotals(rowsBaseFamilia, (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist, mapped.grupoHist || grupo);
         const distribuicao = distributeSkusBySizeTarget(
           skusGrupoSubgrupo,
           planoSubgrupo,
@@ -1142,14 +1341,41 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
       const planoRestanteSemBase = Math.max(planoTotal - planoAlocadoSubgrupos, 0);
       const vendaBaseRestanteSemBase = Math.max(vendaTotalFamilia - vendaBaseAlocadaSubgrupos, 0);
       const skusSemBase = gruposSemBase.flatMap(group => group.skus);
-      const distribuicaoSemBase = distributeBySubgroupTarget(skusSemBase, planoRestanteSemBase);
+      const rowsBaseSemBase = (usaBaseInverno26 || usaCurvaInverno26) ? specialRowsFamilia : rows;
+      const primarySemBase = getFamilySizeTotals(rowsBaseSemBase, (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist);
+      const fallbackSemBase = getLineSizeTotals(rowsBaseSemBase, getLinha(familiaNova), historicalFamilyLineMap);
+      const getReferenceWeight = buildReferenceSizeWeightGetter(
+        skusSemBase,
+        rowsBaseSemBase,
+        (usaBaseInverno26 || usaCurvaInverno26) ? familiaKey : familiaHist,
+        primarySemBase.size > 0 ? primarySemBase : fallbackSemBase
+      );
+      const hasReferenceWeights = skusSemBase.some(sku => getReferenceWeight(sku) > 0);
+      const distribuicaoSemBasePonderada = hasReferenceWeights
+        ? distributeSkusBySkuWeight(
+          skusSemBase,
+          planoRestanteSemBase,
+          vendaBaseRestanteSemBase,
+          getReferenceWeight
+        )
+        : null;
+      const distribuicaoSemBase = distribuicaoSemBasePonderada
+        ? distribuicaoSemBasePonderada.planoPorSku
+        : primarySemBase.size > 0 || fallbackSemBase.size > 0
+          ? distributeBySizeTargetMap(skusSemBase, planoRestanteSemBase, primarySemBase, fallbackSemBase)
+          : distributeBySubgroupTarget(skusSemBase, planoRestanteSemBase);
       const vendaBaseSkuSemBase = skusSemBase.length > 0
         ? Math.round((vendaBaseRestanteSemBase / skusSemBase.length) * 100) / 100
         : 0;
       gruposSemBase.forEach(({ skus, mapped }) => {
         skus.forEach((sku) => {
           planoPorSku.set(sku, distribuicaoSemBase.get(sku) || 0);
-          vendaBasePorSku.set(sku, vendaBaseSkuSemBase);
+          vendaBasePorSku.set(
+            sku,
+            distribuicaoSemBasePonderada
+              ? distribuicaoSemBasePonderada.vendaBasePorSku.get(sku) || 0
+              : vendaBaseSkuSemBase
+          );
           matchPorSku.set(sku, mapped);
         });
       });

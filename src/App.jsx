@@ -12,8 +12,7 @@ import PlanAnalysis from './components/PlanAnalysis';
 import {
   getDashboardApiBaseUrl,
   loadDashboardData,
-  refreshDashboardCache,
-  staticDashboardData
+  refreshDashboardCache
 } from './services/dashboardData';
 import { buildComparativoDetalhadoRows } from './utils/exportExcel';
 
@@ -79,8 +78,8 @@ function App() {
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [fontSize, setFontSize] = useState(100);
-  const [dashboardData, setDashboardData] = useState(staticDashboardData);
-  const [dataSource, setDataSource] = useState('arquivo');
+  const [dashboardData, setDashboardData] = useState(null);
+  const [dataSource, setDataSource] = useState('');
   const [dataError, setDataError] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isRefreshingCache, setIsRefreshingCache] = useState(false);
@@ -96,7 +95,7 @@ function App() {
     referencia: 'TODAS'
   });
 
-  const canRefreshCache = Boolean(getDashboardApiBaseUrl());
+  const canRefreshCache = true;
 
   useEffect(() => {
     let isMounted = true;
@@ -114,8 +113,8 @@ function App() {
         }
       } catch (error) {
         if (isMounted) {
-          setDashboardData(staticDashboardData);
-          setDataSource('arquivo');
+          setDashboardData(null);
+          setDataSource('');
           setDataError(error.message || 'Nao foi possivel carregar os dados do banco.');
         }
       } finally {
@@ -494,6 +493,32 @@ function App() {
                            filters.empresa !== 'TODAS' ||
                            filters.mes !== 'TODOS';
 
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f5] flex items-center justify-center p-6">
+        <div className={`max-w-xl w-full border rounded-lg px-5 py-4 text-sm ${
+          dataError
+            ? 'bg-red-50 border-red-200 text-red-800'
+            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+        }`}>
+          <h1 className="text-base font-bold mb-2">Plano de Producao</h1>
+          <p>
+            {dataError || 'Carregando dados do banco...'}
+          </p>
+          {dataError && (
+            <button
+              onClick={handleRefreshCache}
+              disabled={isRefreshingCache}
+              className="mt-4 px-3 py-2 rounded bg-[#B3838C] text-white text-xs font-semibold disabled:opacity-60"
+            >
+              {isRefreshingCache ? 'Atualizando banco...' : 'Atualizar Banco'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f5f5f5]">
       {/* Sidebar */}
@@ -554,17 +579,16 @@ function App() {
 
         {/* Main */}
         <main className="p-6 space-y-6">
-          {(isLoadingData || dataSource === 'banco' || dataSource === 'api-arquivo' || dataError || cacheMessage) && (
+          {(isLoadingData || dataSource === 'banco' || dataError || cacheMessage) && (
             <div className={`border rounded-lg px-4 py-2 text-xs flex items-center justify-between ${
               dataError
-                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                ? 'bg-red-50 border-red-200 text-red-800'
                 : 'bg-emerald-50 border-emerald-200 text-emerald-800'
             }`}>
               <span>
                 {isLoadingData && 'Carregando dados...'}
                 {!isLoadingData && dataSource === 'banco' && 'Dados carregados do banco.'}
-                {!isLoadingData && dataSource === 'api-arquivo' && 'Dados carregados pela API, ainda usando o arquivo local como fonte do plano.'}
-                {!isLoadingData && dataError && `${dataError} Usando arquivo local como fallback.`}
+                {!isLoadingData && dataError && dataError}
                 {!isLoadingData && !dataError && cacheMessage && cacheMessage}
               </span>
             </div>
