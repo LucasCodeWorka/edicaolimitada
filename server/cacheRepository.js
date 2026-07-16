@@ -283,6 +283,107 @@ export async function getCachedPlanningRows({
   return result.rows;
 }
 
+export async function getSpecialFamilyBaseRows({
+  startDate = '2026-01-01',
+  endDate = '2026-06-30',
+  colecao = 'INVERNO 26',
+  familias = ['NOIVAS', 'LOVE APPEAL']
+} = {}) {
+  const result = await query(`
+    with classificacoes as (
+      select pc.cd_produto,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.marca}) as idmarca,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.marca}) as marca,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.colecao}) as idcolecao,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.colecao}) as colecao,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.classificacao}) as idclassificacao,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.classificacao}) as classificacao,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.familia}) as idfamilia,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.familia}) as familia,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.grupo}) as idgrupo,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.grupo}) as grupo,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.subgrupo}) as cd_subgrupo,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.subgrupo}) as subgrupo,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.status}) as idstatus,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.status}) as status,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.mixProducao}) as idmixproducao,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.mixProducao}) as mixproducao,
+             max(trim(pc.cd_classificacao)) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.continuidade}) as cd_continuidade,
+             max(c.ds_classificacao) filter (where pc.cd_tipoclas = ${CLASSIFICATION_TYPES.continuidade}) as continuidade
+      from public.prd_produtoclas pc
+      join public.prd_classificacao c
+        on c.cd_tipoclas = pc.cd_tipoclas
+       and trim(c.cd_classificacao) = trim(pc.cd_classificacao)
+      where pc.cd_tipoclas in (
+        ${CLASSIFICATION_TYPES.marca},
+        ${CLASSIFICATION_TYPES.colecao},
+        ${CLASSIFICATION_TYPES.classificacao},
+        ${CLASSIFICATION_TYPES.familia},
+        ${CLASSIFICATION_TYPES.grupo},
+        ${CLASSIFICATION_TYPES.subgrupo},
+        ${CLASSIFICATION_TYPES.status},
+        ${CLASSIFICATION_TYPES.mixProducao},
+        ${CLASSIFICATION_TYPES.continuidade}
+      )
+      group by pc.cd_produto
+    )
+    select v.idempresa::text as idempresa,
+           e.empresa,
+           v.idproduto::text as idproduto,
+           cl.idmixproducao,
+           cl.mixproducao,
+           cl.idmarca,
+           cl.marca,
+           cl.idclassificacao,
+           cl.classificacao,
+           cl.idcolecao,
+           cl.colecao,
+           cl.idfamilia,
+           cl.familia,
+           cl.idgrupo,
+           cl.grupo,
+           cl.cd_subgrupo,
+           cl.subgrupo,
+           cl.idstatus,
+           cl.status,
+           cl.cd_continuidade,
+           cl.continuidade,
+           f_dic_prd_nivel(v.idproduto, 'CD'::bpchar) as referencia,
+           g.nm_produto as produto,
+           trim(g.cd_cor) as idcor,
+           g.ds_cor as cor,
+           g.cd_tamanho::text as idtamanho,
+           g.ds_tamanho as tamanho,
+           extract(month from v.data)::int as mes_origem,
+           sum(v.qt_liquida)::float as venda
+    from public.mv_vendas_qtd v
+    left join public."dEMPRESA" e on e.idempresa = v.idempresa
+    left join public.vr_prd_prdgrade g on g.cd_produto = v.idproduto
+    left join classificacoes cl on cl.cd_produto = v.idproduto
+    where v.idempresa <> 1
+      and v.data >= $1::date
+      and v.data < ($2::date + interval '1 day')
+      and cl.colecao = $3
+      and upper(trim(cl.familia)) = any($4::text[])
+    group by v.idempresa, e.empresa, v.idproduto, f_dic_prd_nivel(v.idproduto, 'CD'::bpchar),
+             cl.idmixproducao, cl.mixproducao,
+             cl.idmarca, cl.marca, cl.idclassificacao, cl.classificacao,
+             cl.idcolecao, cl.colecao, cl.idfamilia, cl.familia, cl.idgrupo, cl.grupo,
+             cl.cd_subgrupo, cl.subgrupo, cl.idstatus, cl.status, cl.cd_continuidade, cl.continuidade,
+             g.nm_produto, g.cd_cor, g.ds_cor, g.cd_tamanho, g.ds_tamanho,
+             extract(month from v.data)
+    having sum(v.qt_liquida) <> 0
+    order by cl.familia, f_dic_prd_nivel(v.idproduto, 'CD'::bpchar), g.ds_cor, g.ds_tamanho, e.empresa
+  `, [
+    startDate,
+    endDate,
+    colecao,
+    familias.map(familia => String(familia).toUpperCase().trim())
+  ]);
+
+  return result.rows;
+}
+
 export async function getLatestCacheRun() {
   await ensureCacheTables();
 

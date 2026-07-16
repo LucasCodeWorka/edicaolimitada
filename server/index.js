@@ -8,7 +8,8 @@ import {
   getCachedPlanningRows,
   getLatestCacheRun,
   refreshPlanningCache,
-  getGrupoSubgrupoProdutos
+  getGrupoSubgrupoProdutos,
+  getSpecialFamilyBaseRows
 } from './cacheRepository.js';
 import { buildDashboardFromSales } from './dashboardBuilder.js';
 import {
@@ -123,7 +124,7 @@ app.post('/api/cache/refresh', async (req, res) => {
 app.get('/api/dashboard-data', async (req, res) => {
   if (req.query.source === 'db') {
     try {
-      const cacheKey = 'verao26-edicao-limitada-2025s2-v10'; // v10: curva de tamanho por grade ordenada
+      const cacheKey = 'verao26-edicao-limitada-2025s2-v13'; // v13: NOIVAS/LOVE APPEAL usam Inverno 26 jan-jun/2026
       const needsRefresh = !dashboardCache.has(cacheKey) || req.query.refresh === '1';
       console.log('[dashboard-data] cacheKey:', cacheKey, 'hasCache:', dashboardCache.has(cacheKey), 'refresh:', req.query.refresh, 'needsRefresh:', needsRefresh);
 
@@ -142,7 +143,8 @@ app.get('/api/dashboard-data', async (req, res) => {
           .map(sku => sku.codProduto)
           .filter(cod => cod && cod !== '');
         const grupoSubgrupoMap = await getGrupoSubgrupoProdutos(codProdutosPlano);
-        const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap });
+        const specialBaseRows = await getSpecialFamilyBaseRows();
+        const dashboard = buildDashboardFromSales(rows, { grupoSubgrupoMap, specialBaseRows });
 
         // Enriquecer SKUs com grupo/subgrupo do banco
         const codProdutos = dashboard.planoEdicaoLimitadaData

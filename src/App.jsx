@@ -8,12 +8,14 @@ import ComparativeMatrix from './components/ComparativeMatrix';
 import RulesModal from './components/RulesModal';
 import FamilyMappingTable from './components/FamilyMappingTable';
 import AuditTable from './components/AuditTable';
+import PlanAnalysis from './components/PlanAnalysis';
 import {
   getDashboardApiBaseUrl,
   loadDashboardData,
   refreshDashboardCache,
   staticDashboardData
 } from './services/dashboardData';
+import { buildComparativoDetalhadoRows } from './utils/exportExcel';
 
 // Mapeamento de Família para Linha (baseado nos dados do CSV)
 const FAMILIA_LINHA_MAP = {
@@ -153,8 +155,8 @@ function App() {
     filterOptions = {},
     kpiData = {},
     mesProducaoData = [],
-    planoEdicaoLimitadaData = [],
-    comparativoLojasData = { lojas: [], familias: [] },
+    planoEdicaoLimitadaData: planoEdicaoLimitadaDataRaw = [],
+    comparativoLojasData: comparativoLojasDataRaw = { lojas: [], familias: [] },
     mapeamentoFamiliasData = { familias: [] },
     grupoData2025 = [],
     familiaData2025 = [],
@@ -163,6 +165,71 @@ function App() {
     refData2025 = [],
     historicoVendasData = []
   } = dashboardData || {};
+
+  const {
+    planoEdicaoLimitadaData,
+    comparativoLojasData,
+    totalPlanoFinal
+  } = useMemo(() => {
+    const comparativoBase = {
+      ...(comparativoLojasDataRaw || { lojas: [], familias: [] }),
+      historicoVendasData
+    };
+    const lojas = comparativoBase.lojas || [];
+    const pcpRows = buildComparativoDetalhadoRows(planoEdicaoLimitadaDataRaw, comparativoBase);
+
+    const makeKey = (...parts) => parts.map(part => normalizeText(part)).join('|');
+    const pcpBySku = new Map(
+      pcpRows.map(row => [
+        makeKey(row['FamÃ­lia'] || row['Família'], row['ReferÃªncia'] || row['Referência'], row.Cor, row.Tamanho, row.Grupo, row.Subgrupo),
+        row
+      ])
+    );
+
+    const planoFinal = planoEdicaoLimitadaDataRaw.map(item => {
+      const pcpRow = pcpBySku.get(makeKey(item.familia, item.ref, item.cor, item.tam, item.grupo, item.subgrupo));
+      const planoOriginal = Number(item.planoOriginal ?? item.plano ?? 0);
+      const planoFinalSku = pcpRow ? Number(pcpRow['Plano Total'] || 0) : planoOriginal;
+      const planoDistribuidoLojas = {};
+
+      lojas.forEach(loja => {
+        planoDistribuidoLojas[loja] = pcpRow ? Number(pcpRow[loja] || 0) : 0;
+      });
+
+      return {
+        ...item,
+        planoOriginal,
+        plano: planoFinalSku,
+        planoDistribuidoLojas
+      };
+    });
+
+    const planoPorFamiliaLoja = {};
+    pcpRows.forEach(row => {
+      const familia = normalizeText(row['FamÃ­lia'] || row['Família'], 'OUTROS');
+      if (!planoPorFamiliaLoja[familia]) {
+        planoPorFamiliaLoja[familia] = {};
+      }
+      lojas.forEach(loja => {
+        planoPorFamiliaLoja[familia][loja] = (planoPorFamiliaLoja[familia][loja] || 0) + Number(row[loja] || 0);
+      });
+    });
+
+    const comparativoFinal = {
+      ...comparativoBase,
+      familias: (comparativoBase.familias || []).map(familia => ({
+        ...familia,
+        plano2026Original: familia.plano2026,
+        plano2026: lojas.map(loja => planoPorFamiliaLoja[normalizeText(familia.nome)]?.[loja] || 0)
+      }))
+    };
+
+    return {
+      planoEdicaoLimitadaData: planoFinal,
+      comparativoLojasData: comparativoFinal,
+      totalPlanoFinal: planoFinal.reduce((sum, item) => sum + Number(item.plano || 0), 0)
+    };
+  }, [planoEdicaoLimitadaDataRaw, comparativoLojasDataRaw, historicoVendasData]);
 
   // Filtrar os dados do plano baseado nos filtros selecionados
   const dadosFiltrados = useMemo(() => {
@@ -211,18 +278,22 @@ function App() {
                        filters.referencia !== 'TODAS';
 
     if (!isFiltered) {
-      return kpiData;
+      return {
+        ...kpiData,
+        plano2026Original: kpiData.plano2026,
+        plano2026: totalPlano
+      };
     }
 
     // Estimativa proporcional da venda 2025 baseada no filtro
-    const proporcao = totalPlano / kpiData.plano2026;
+    const proporcao = totalPlano / (totalPlanoFinal || kpiData.plano2026 || 1);
     const vendaEstimada = Math.round(kpiData.venda2025 * proporcao);
 
     return {
       plano2026: totalPlano,
       venda2025: vendaEstimada
     };
-  }, [dadosFiltrados, filters, kpiData]);
+  }, [dadosFiltrados, filters, kpiData, totalPlanoFinal]);
 
   // Calcular dados agregados baseado nos dados filtrados
   const dadosAgregados = useMemo(() => {
@@ -616,6 +687,8 @@ function App() {
 
           {/* Matriz Comparativa */}
           <ComparativeMatrix data={comparativoLojasData} filters={filters} familiaLinhaMap={FAMILIA_LINHA_MAP} planoEdicaoLimitadaData={planoEdicaoLimitadaData} />
+
+          <PlanAnalysis data={planoEdicaoLimitadaData} historicoVendasData={historicoVendasData} filters={filters} />
 
           {/* Tabela de Conferência / Memória de Cálculo */}
           <AuditTable data={planoEdicaoLimitadaData} filters={filters} />

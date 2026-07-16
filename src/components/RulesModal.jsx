@@ -32,7 +32,7 @@ const RulesModal = ({ isOpen, onClose, dadosAjustados, kpiData, filters }) => {
       titulo: 'Tamanhos Maiores - Exclusão de Lojas',
       descricao: 'Famílias de tamanhos maiores (PLUS) não são distribuídas para certas lojas.',
       status: 'ativo',
-      detalhes: 'Lojas excluídas: DOM LUIS, NORTH JOQUEI, ECOMMERCE | Famílias afetadas: KISS ME PLUS, BASICOS PLUS e outras com sufixo PLUS'
+      detalhes: 'Lojas excluidas: DOM LUIS, NORTH JOQUEI/JOKEY, ECOMMERCE | Grade minima: sutias 48/50 = 1 peca; calcinhas GG/XG = 1 peca | Excecao KISS ME tamanho maior: somente MARAPONGA'
     },
     {
       titulo: 'Agregação de Dados',
@@ -68,7 +68,7 @@ const RulesModal = ({ isOpen, onClose, dadosAjustados, kpiData, filters }) => {
       titulo: 'Regras PCP Aplicadas',
       descricao: 'Regras específicas definidas pelo PCP para distribuição correta.',
       status: 'ativo',
-      detalhes: 'WISHES LUMIAR: distribuída | NOIVAS refs 603086, 606786: incluídas | CINTA LIGA 606775 incluída | CETIM: tamanhos M e G garantidos | Tamanhos maiores: excluídos de DOM LUIS, NORTH JOQUEI, ECOMMERCE | PORTELLE: lojas pequenas recebem somente cor PRETO'
+      detalhes: 'WISHES LUMIAR: distribuida | NOIVAS refs 603086, 606786: incluidas | CINTA LIGA 606775 incluida | CETIM: tamanhos M e G garantidos | Tamanhos maiores: excluidos de DOM LUIS, NORTH JOQUEI/JOKEY, ECOMMERCE, com minimo 1 nos tamanhos alvo | PORTELLE: lojas pequenas recebem somente cor PRETO'
     }
   ];
 

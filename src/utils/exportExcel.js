@@ -126,6 +126,103 @@ const getFamiliaHistorica = (familia) => {
   return DEPARA_FAMILIAS[key] || key;
 };
 
+const normalizeKey = (value, fallback = '') => String(value || fallback).toUpperCase().trim();
+
+const isLojaJoquei = (loja) => {
+  const lojaKey = normalizeKey(loja);
+  return lojaKey.includes('JOQUEI');
+};
+
+const isContinuidadadePermanente = (continuidade) => {
+  const key = normalizeKey(continuidade);
+  return key === 'PERMANENTE' || key === 'PERMANENTE COR NOVA';
+};
+
+const isContinuidadadeEdicaoLimitada = (continuidade) => normalizeKey(continuidade) === 'EDICAO LIMITADA';
+
+const getLoveAppealAllowedSizes = (sku) => {
+  if (normalizeKey(sku.familia) !== 'LOVE APPEAL') return null;
+
+  const grupo = normalizeKey(sku.grupo);
+  if (grupo.includes('CALCA')) return new Set(['M', 'G']);
+  if (grupo.includes('SUTIA')) return new Set(['42', '44']);
+
+  return null;
+};
+
+const isLoveAppealAllowedSku = (sku) => {
+  const allowed = getLoveAppealAllowedSizes(sku);
+  return !allowed || allowed.has(normalizeKey(sku.tam || sku.tamanho));
+};
+
+const roundBusinessValue = (valor) => {
+  if (valor <= 0) return 0;
+  if (valor < 1) return 1;
+  if (valor < 1.5) return 1;
+  if (valor < 2) return 2;
+  return Math.floor(valor);
+};
+
+const distribuirInteiroPorPeso = (items, total, getWeight) => {
+  if (!items.length || total <= 0) return new Map(items.map(item => [item, 0]));
+
+  const totalWeight = items.reduce((sum, item) => sum + Number(getWeight(item) || 0), 0);
+  const rows = items.map((item, index) => {
+    const raw = totalWeight > 0
+      ? total * (Number(getWeight(item) || 0) / totalWeight)
+      : total / items.length;
+    const base = Math.floor(raw);
+    return { item, index, base, fraction: raw - base };
+  });
+
+  let remaining = total - rows.reduce((sum, row) => sum + row.base, 0);
+  rows.sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+
+  const result = new Map();
+  rows.forEach((row, index) => {
+    result.set(row.item, row.base + (index < remaining ? 1 : 0));
+  });
+
+  return result;
+};
+
+const getTopSizesFromRows = (rows) => {
+  const totals = {};
+  rows.forEach((row) => {
+    if (isLojaJoquei(row.empresa)) return;
+    const tam = normalizeKey(row.tam || row.tamanho);
+    if (!tam) return;
+    totals[tam] = (totals[tam] || 0) + Number(row.valor || row.venda || 0);
+  });
+
+  return Object.entries(totals)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 2)
+    .map(([tam]) => tam);
+};
+
+const getTopSizesForReference = (refSkus, historicoVendasData = []) => {
+  const first = refSkus[0] || {};
+  const refKey = normalizeKey(first.ref);
+  const ownRows = historicoVendasData.filter(row => normalizeKey(row.ref) === refKey);
+  const ownTopSizes = getTopSizesFromRows(ownRows);
+  if (ownTopSizes.length > 0) return ownTopSizes;
+
+  const familiaHist = normalizeKey(first.familiaHist || getFamiliaHistorica(first.familia));
+  const grupoHist = normalizeKey(first.grupoHist || first.grupo);
+  const subgrupoHist = normalizeKey(first.subgrupoHist || first.subgrupo);
+  const histSubgrupos = new Set(subgrupoHist.split('+').map(value => normalizeKey(value)).filter(Boolean));
+
+  const sourceRows = historicoVendasData.filter(row => (
+    normalizeKey(row.familia) === familiaHist &&
+    normalizeKey(row.grupo) === grupoHist &&
+    histSubgrupos.has(normalizeKey(row.subgrupo))
+  ));
+
+  return getTopSizesFromRows(sourceRows);
+};
+
 /**
  * Exporta nível detalhado (SKU) do comparativo para Excel - para PCP
  * Usa participação por FAMILIA + GRUPO + SUBGRUPO quando disponível
@@ -134,8 +231,13 @@ const getFamiliaHistorica = (familia) => {
  * @param {string} filename - Nome do arquivo
  * @version 2026-07-13T12:26 - Corrigido lojasPCP para incluir RIO MAR
  */
-export const exportComparativoDetalhado = (planoData, comparativoData, filename = 'plano_detalhado_pcp') => {
-  const { lojas, familias, vendasPorFamiliaGrupoSubgrupoLoja } = comparativoData;
+export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
+  const {
+    lojas,
+    familias,
+    vendasPorFamiliaGrupoSubgrupoLoja,
+    historicoVendasData = []
+  } = comparativoData;
 
   // DEBUG: Verificar dados recebidos
   console.log('[exportPCP] vendasPorFamiliaGrupoSubgrupoLoja disponivel:', !!vendasPorFamiliaGrupoSubgrupoLoja);
@@ -153,7 +255,11 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
   }
 
   // Lojas excluídas para famílias PLUS
-  const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'ECOMMERCE'];
+  const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'JOKEY', 'ECOMMERCE'];
+  const TAMANHOS_MAIORES_MINIMOS = {
+    SUTIA: new Set(['48', '50']),
+    CALCA: new Set(['GG', 'XG'])
+  };
   const LOJAS_PEQUENAS_PORTELLE = [
     'DOM LUIS',
     'ECOMMERCE',
@@ -176,14 +282,40 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     return LOJAS_EXCLUIDAS_TAM_MAIOR.some(excl => lojaUpper.includes(excl.toUpperCase()));
   };
 
+  const getTamanhoMaiorMinimoSet = (sku) => {
+    const grupoUpper = String(sku.grupo || '').toUpperCase().trim();
+    if (grupoUpper.includes('SUTIA')) return TAMANHOS_MAIORES_MINIMOS.SUTIA;
+    if (grupoUpper.includes('CALCA')) return TAMANHOS_MAIORES_MINIMOS.CALCA;
+    return null;
+  };
+
+  const ehSkuTamanhoMaiorMinimo = (sku) => {
+    const tamanhosMinimos = getTamanhoMaiorMinimoSet(sku);
+    return Boolean(tamanhosMinimos?.has(normalizeKey(sku.tam || sku.tamanho)));
+  };
+
+  const ehKissMeTamanhoMaiorExcecao = (sku) => {
+    return normalizeKey(sku.familia) === 'KISS ME'
+      && isContinuidadadeEdicaoLimitada(sku.continuidade)
+      && ehSkuTamanhoMaiorMinimo(sku);
+  };
+
   const ehPortelleNaoPreto = (sku) => {
     return String(sku.familia || '').toUpperCase().trim() === 'PORTELLE'
       && String(sku.cor || '').toUpperCase().trim() !== 'PRETO';
   };
 
+  const ehPortelle = (sku) => {
+    return String(sku.familia || '').toUpperCase().trim() === 'PORTELLE';
+  };
+
   const lojaPequenaPortelle = (loja) => {
     const lojaUpper = String(loja).toUpperCase().trim();
     return LOJAS_PEQUENAS_PORTELLE.some(excl => lojaUpper.includes(excl.toUpperCase()));
+  };
+
+  const lojaSemPortelle = (loja) => {
+    return String(loja || '').toUpperCase().trim() === 'TABOSA';
   };
 
   // Usar lojas exatamente como vêm da API
@@ -192,6 +324,41 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     'MORUMBI', 'NORTH', 'NORTH JOQUEI', 'PARANGABA', 'PORTO ALEGRE',
     'RIO MAR', 'RIO MAR RECIFE', 'RIOMAR KENNEDY', 'SALVADOR', 'TABOSA'
   ];
+
+  const planoJaDistribuido = planoData.some(item => item.planoDistribuidoLojas);
+  if (planoJaDistribuido) {
+    const dataDistribuida = planoData
+      .filter(item => item.colecao === 'VERAO 27')
+      .map(item => {
+        const row = {
+          'FamÃ­lia': item.familia,
+          'ReferÃªncia': item.ref,
+          'Cor': item.cor,
+          'Tamanho': item.tam,
+          'Grupo': item.grupo || '-',
+          'Subgrupo': item.subgrupo || '-',
+          'Plano Original': Number(item.planoOriginal ?? item.plano ?? 0),
+          'Plano Total': Number(item.plano || 0),
+          'Fonte ParticipaÃ§Ã£o': item.fonteParticipacao || '-'
+        };
+
+        lojasPCP.forEach(loja => {
+          row[loja] = Number(item.planoDistribuidoLojas?.[loja] || 0);
+        });
+
+        row['Plano Total'] = lojasPCP.reduce((sum, loja) => sum + Number(row[loja] || 0), 0);
+        return row;
+      });
+
+    dataDistribuida.sort((a, b) => {
+      if (a['FamÃ­lia'] !== b['FamÃ­lia']) return a['FamÃ­lia'].localeCompare(b['FamÃ­lia']);
+      if (a['ReferÃªncia'] !== b['ReferÃªncia']) return a['ReferÃªncia'].localeCompare(b['ReferÃªncia']);
+      if (a['Cor'] !== b['Cor']) return a['Cor'].localeCompare(b['Cor']);
+      return a['Tamanho'].localeCompare(b['Tamanho']);
+    });
+
+    return dataDistribuida;
+  }
 
   // Criar mapa de participação por família (fallback)
   const participacaoPorFamilia = {};
@@ -289,6 +456,16 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
   // Filtrar apenas VERAO 27
   const skusVerao27 = planoData.filter(item => item.colecao === 'VERAO 27');
+  const skusPorReferencia = skusVerao27.reduce((acc, sku) => {
+    const key = `${normalizeKey(sku.familia)}|${normalizeKey(sku.ref)}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(sku);
+    return acc;
+  }, {});
+  const topSizesPorReferencia = {};
+  Object.entries(skusPorReferencia).forEach(([key, skusRef]) => {
+    topSizesPorReferencia[key] = getTopSizesForReference(skusRef, historicoVendasData);
+  });
 
   const data = [];
   let skusComGranular = 0;
@@ -297,10 +474,13 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
   skusVerao27.forEach(sku => {
     const isTamMaior = ehFamiliaTamanhoMaior(sku.familia);
+    const isKissMeTamMaiorExcecao = ehKissMeTamanhoMaiorExcecao(sku);
+    const isSkuTamMaiorMinimo = ehSkuTamanhoMaiorMinimo(sku);
     const familiaKey = String(sku.familia).toUpperCase().trim();
     const familiaHist = getFamiliaHistorica(familiaKey);
     const grupo = String(sku.grupo || '').toUpperCase().trim();
     const subgrupo = String(sku.subgrupo || '').toUpperCase().trim();
+    const planoOriginalSku = Number(sku.planoOriginal ?? sku.plano ?? 0);
 
     const row = {
       'Família': sku.familia,
@@ -309,7 +489,8 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
       'Tamanho': sku.tam,
       'Grupo': sku.grupo || '-',
       'Subgrupo': sku.subgrupo || '-',
-      'Plano Total': sku.plano,
+      'Plano Original': planoOriginalSku,
+      'Plano Total': planoOriginalSku,
     };
 
     // Prioridade de busca:
@@ -355,12 +536,14 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
 
     // Para PLUS ou PORTELLE não-preto, recalcular excluindo lojas proibidas
     let participacaoAjustada = { ...participacaoBase };
-    if (isTamMaior || ehPortelleNaoPreto(sku)) {
+    if (isTamMaior || isKissMeTamMaiorExcecao || ehPortelleNaoPreto(sku)) {
       const vendasAjustadas = {};
       let totalAjustado = 0;
       lojasPCP.forEach(loja => {
         const lojaExcluida =
           (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+          (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA') ||
+          (ehPortelle(sku) && lojaSemPortelle(loja)) ||
           (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja));
 
         if (lojaExcluida) {
@@ -376,37 +559,87 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     }
 
     // Distribuir usando algoritmo "largest remainder"
-    const planoTotal = sku.plano;
+    const planoTotal = planoOriginalSku;
     const distribuicao = {};
     const restos = [];
+    const topSizesKey = `${normalizeKey(sku.familia)}|${normalizeKey(sku.ref)}`;
+    const topSizesRef = topSizesPorReferencia[topSizesKey] || [];
+    const skuEntreTopSizes = topSizesRef.includes(normalizeKey(sku.tam));
+    const loveAppealAllowedSku = isLoveAppealAllowedSku(sku);
+    const loveAppealSku = normalizeKey(sku.familia) === 'LOVE APPEAL';
 
     lojasPCP.forEach(loja => {
       const lojaExcluida =
         (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+        (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA') ||
+        (ehPortelle(sku) && lojaSemPortelle(loja)) ||
         (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja));
 
       if (lojaExcluida) {
         distribuicao[loja] = 0;
       } else {
         const valorExato = planoTotal * participacaoAjustada[loja];
-        const valorFloor = Math.floor(valorExato);
-        const resto = valorExato - valorFloor;
-        distribuicao[loja] = valorFloor;
+        const valorArredondado = roundBusinessValue(valorExato);
+        const resto = valorExato - Math.floor(valorExato);
+        distribuicao[loja] = valorArredondado;
         restos.push({ loja, resto });
       }
     });
 
-    const somaFloors = Object.values(distribuicao).reduce((s, v) => s + v, 0);
-    let falta = planoTotal - somaFloors;
+    const somaArredondada = Object.values(distribuicao).reduce((s, v) => s + v, 0);
+    let falta = planoTotal - somaArredondada;
 
-    restos.sort((a, b) => b.resto - a.resto);
-    for (let i = 0; i < falta && i < restos.length; i++) {
-      distribuicao[restos[i].loja] += 1;
+    if (falta > 0) {
+      restos.sort((a, b) => b.resto - a.resto);
+      for (let i = 0; i < falta && i < restos.length; i++) {
+        distribuicao[restos[i].loja] += 1;
+      }
     }
 
     lojasPCP.forEach(loja => {
+      const lojaBloqueadaTamanhoMaior =
+        (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+        (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA');
+
+      if (lojaBloqueadaTamanhoMaior) {
+        row[loja] = 0;
+        return;
+      }
+
+      const vendaLojaFonte = Number(vendasBase?.[loja] || 0);
+      const deveAplicarMinimoPermanente =
+        skuEntreTopSizes &&
+        isContinuidadadePermanente(sku.continuidade) &&
+        !isLojaJoquei(loja);
+      const deveAplicarMinimoEdicaoLimitada =
+        skuEntreTopSizes &&
+        isContinuidadadeEdicaoLimitada(sku.continuidade) &&
+        vendaLojaFonte <= 0 &&
+        !isLojaJoquei(loja);
+
+      if ((deveAplicarMinimoPermanente || deveAplicarMinimoEdicaoLimitada) && distribuicao[loja] < 1) {
+        distribuicao[loja] = 1;
+      }
+
+      if (loveAppealSku && loveAppealAllowedSku && distribuicao[loja] < 2) {
+        distribuicao[loja] = 2;
+      }
+
+      if (
+        isSkuTamMaiorMinimo &&
+        (isTamMaior || isKissMeTamMaiorExcecao) &&
+        isContinuidadadeEdicaoLimitada(sku.continuidade) &&
+        !lojaExcluidaTamanhoMaior(loja) &&
+        (!isKissMeTamMaiorExcecao || normalizeKey(loja) === 'MARAPONGA') &&
+        distribuicao[loja] < 1
+      ) {
+        distribuicao[loja] = 1;
+      }
+
       row[loja] = distribuicao[loja];
     });
+
+    row['Plano Total'] = lojasPCP.reduce((sum, loja) => sum + Number(row[loja] || 0), 0);
 
     // Adicionar coluna de debug (pode remover depois)
     row['Fonte Participação'] = fonteParticipacao;
@@ -417,6 +650,61 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
   console.log(`[exportPCP] Distribuição: ${skusComGranular} SKUs com granular (fam+grupo+subgrupo), ${skusComFamilia} com família, ${skusComGeral} com geral`);
 
   // Ordenar por Família > Referência > Cor > Tamanho
+  const portelleRows = data.filter(row => normalizeKey(row['FamÃ­lia'] || row['Família']) === 'PORTELLE');
+  if (portelleRows.length > 0) {
+    const portelleFamilia = familias.find(fam => normalizeKey(fam.nome) === 'PORTELLE');
+    const budgetInicial = {};
+
+    lojasPCP.forEach(loja => {
+      const lojaIdx = lojas.indexOf(loja);
+      budgetInicial[loja] = portelleFamilia && lojaIdx >= 0
+        ? Number(portelleFamilia.plano2026[lojaIdx] || 0)
+        : 0;
+    });
+
+    const targetPortelle = portelleRows.reduce((sum, row) => sum + Number(row['Plano Original'] || row['Plano Total'] || 0), 0);
+    const lojasComPortelle = lojasPCP.filter(loja => !lojaSemPortelle(loja));
+    const budgetPorLoja = Object.fromEntries(lojasPCP.map(loja => [loja, 0]));
+    const budgetDistribuido = distribuirInteiroPorPeso(
+      lojasComPortelle,
+      targetPortelle,
+      loja => budgetInicial[loja] || 0
+    );
+
+    lojasComPortelle.forEach(loja => {
+      budgetPorLoja[loja] = budgetDistribuido.get(loja) || 0;
+    });
+
+    portelleRows.forEach(row => {
+      lojasPCP.forEach(loja => {
+        row[loja] = 0;
+      });
+    });
+
+    lojasPCP.forEach(loja => {
+      const budgetLoja = budgetPorLoja[loja] || 0;
+      if (budgetLoja <= 0) return;
+
+      const linhasElegiveis = lojaPequenaPortelle(loja)
+        ? portelleRows.filter(row => normalizeKey(row.Cor) === 'PRETO')
+        : portelleRows;
+
+      const distribuicaoLoja = distribuirInteiroPorPeso(
+        linhasElegiveis,
+        budgetLoja,
+        row => Number(row['Plano Original'] || row['Plano Total'] || 0)
+      );
+
+      linhasElegiveis.forEach(row => {
+        row[loja] = distribuicaoLoja.get(row) || 0;
+      });
+    });
+
+    portelleRows.forEach(row => {
+      row['Plano Total'] = lojasPCP.reduce((sum, loja) => sum + Number(row[loja] || 0), 0);
+    });
+  }
+
   data.sort((a, b) => {
     if (a['Família'] !== b['Família']) return a['Família'].localeCompare(b['Família']);
     if (a['Referência'] !== b['Referência']) return a['Referência'].localeCompare(b['Referência']);
@@ -424,5 +712,10 @@ export const exportComparativoDetalhado = (planoData, comparativoData, filename 
     return a['Tamanho'].localeCompare(b['Tamanho']);
   });
 
+  return data;
+};
+
+export const exportComparativoDetalhado = (planoData, comparativoData, filename = 'plano_detalhado_pcp') => {
+  const data = buildComparativoDetalhadoRows(planoData, comparativoData);
   exportToExcel(data, filename, 'Plano PCP');
 };

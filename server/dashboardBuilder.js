@@ -17,6 +17,87 @@ const fmtMonthPlan = [
   { mes: 'OUTUBRO', peso: 0.20 }
 ];
 
+const SPECIAL_INVERNO26_FAMILIES = new Set(['NOIVAS', 'LOVE APPEAL']);
+const SPECIAL_MONTH_DEPARA = {
+  1: 'JULHO',
+  2: 'AGOSTO',
+  3: 'SETEMBRO',
+  4: 'OUTUBRO',
+  5: 'NOVEMBRO',
+  6: 'DEZEMBRO'
+};
+
+const SPECIAL_SUBGROUP_DEPARA = {
+  'LOVE APPEAL|CALCA|CALCINHA STRING': 'CALCINHA FIO DENTAL'
+};
+
+const LOVE_APPEAL_ALLOWED_SIZES = {
+  CALCA: new Set(['M', 'G']),
+  SUTIA: new Set(['42', '44'])
+};
+
+function getLoveAppealAllowedSizes(sku) {
+  if (normalizeName(sku.familia).toUpperCase() !== 'LOVE APPEAL') return null;
+
+  const grupo = normalizeName(sku.grupo).toUpperCase();
+  if (grupo.includes('CALCA')) return LOVE_APPEAL_ALLOWED_SIZES.CALCA;
+  if (grupo.includes('SUTIA')) return LOVE_APPEAL_ALLOWED_SIZES.SUTIA;
+
+  return null;
+}
+
+function applyLoveAppealSkuRules(skusFamilia, planoPorSku, vendaBasePorSku) {
+  const groups = new Map();
+
+  skusFamilia.forEach((sku) => {
+    if (!getLoveAppealAllowedSizes(sku)) return;
+
+    const key = `${sku.referencia}|${sku.cor}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(sku);
+  });
+
+  groups.forEach((skus) => {
+    const totalPlano = skus.reduce((sum, sku) => sum + Number(planoPorSku.get(sku) || 0), 0);
+    const totalBase = skus.reduce((sum, sku) => sum + Number(vendaBasePorSku.get(sku) || 0), 0);
+    const allowedSkus = skus.filter((sku) => {
+      const allowed = getLoveAppealAllowedSizes(sku);
+      return allowed && allowed.has(normalizeName(sku.tamanho).toUpperCase());
+    });
+    const originalAllowedPlano = new Map(
+      allowedSkus.map(sku => [sku, Number(planoPorSku.get(sku) || 0)])
+    );
+    const originalAllowedBase = new Map(
+      allowedSkus.map(sku => [sku, Number(vendaBasePorSku.get(sku) || 0)])
+    );
+    const originalAllowedTotal = [...originalAllowedPlano.values()].reduce((sum, value) => sum + value, 0);
+    const originalAllowedBaseTotal = [...originalAllowedBase.values()].reduce((sum, value) => sum + value, 0);
+
+    skus.forEach((sku) => {
+      planoPorSku.set(sku, 0);
+      vendaBasePorSku.set(sku, 0);
+    });
+
+    if (allowedSkus.length === 0 || totalPlano <= 0) return;
+
+    const planoValues = roundToTotal(
+      allowedSkus,
+      sku => originalAllowedTotal > 0
+        ? totalPlano * (Number(originalAllowedPlano.get(sku) || 0) / originalAllowedTotal)
+        : totalPlano / allowedSkus.length,
+      totalPlano
+    );
+
+    allowedSkus.forEach((sku, index) => {
+      const base = originalAllowedBaseTotal > 0
+        ? totalBase * (Number(originalAllowedBase.get(sku) || 0) / originalAllowedBaseTotal)
+        : totalBase / allowedSkus.length;
+      planoPorSku.set(sku, planoValues[index] || 0);
+      vendaBasePorSku.set(sku, Math.round(base * 100) / 100);
+    });
+  });
+}
+
 function roundToTotal(items, getValue, targetTotal) {
   const prepared = items.map((item, index) => {
     const raw = getValue(item);
@@ -124,6 +205,62 @@ function getLineSubgroupTotals(rows, linha, grupo, historicalFamilyLineMap) {
   return totals;
 }
 
+function getLineGroupSubgroupReferenceAverage(rows, linha, grupo, subgrupo, historicalFamilyLineMap) {
+  const linhaKey = normalizeName(linha).toUpperCase();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoKey = normalizeName(subgrupo).toUpperCase();
+  const totalsByRef = new Map();
+
+  rows.forEach((row) => {
+    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
+
+    const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (!ref || ref === 'SEM INFO') return;
+    totalsByRef.set(ref, (totalsByRef.get(ref) || 0) + Number(row.venda || 0));
+  });
+
+  const positiveTotals = [...totalsByRef.values()].filter(value => value > 0);
+  if (positiveTotals.length === 0) {
+    return { average: 0, referenceCount: 0, total: 0 };
+  }
+
+  const total = positiveTotals.reduce((sum, value) => sum + value, 0);
+  return {
+    average: total / positiveTotals.length,
+    referenceCount: positiveTotals.length,
+    total
+  };
+}
+
+function getGroupSubgroupReferenceAverage(rows, grupo, subgrupo) {
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoKey = normalizeName(subgrupo).toUpperCase();
+  const totalsByRef = new Map();
+
+  rows.forEach((row) => {
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
+
+    const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (!ref || ref === 'SEM INFO') return;
+    totalsByRef.set(ref, (totalsByRef.get(ref) || 0) + Number(row.venda || 0));
+  });
+
+  const positiveTotals = [...totalsByRef.values()].filter(value => value > 0);
+  if (positiveTotals.length === 0) {
+    return { average: 0, referenceCount: 0, total: 0 };
+  }
+
+  const total = positiveTotals.reduce((sum, value) => sum + value, 0);
+  return {
+    average: total / positiveTotals.length,
+    referenceCount: positiveTotals.length,
+    total
+  };
+}
+
 const LETTER_SIZE_ORDER = [
   'PP', 'P', 'M', 'G', 'GG', 'EG', 'XG', 'XGG', 'XXG', 'EXG'
 ];
@@ -201,6 +338,25 @@ function getLineSubgroupSizeTotals(rows, linha, grupo, subgrupo, historicalFamil
   return totals;
 }
 
+function getGroupSubgroupSizeTotals(rows, grupo, subgrupo, allowedSizes = null) {
+  const totals = new Map();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoKey = normalizeName(subgrupo).toUpperCase();
+  const allowedSizeSet = allowedSizes
+    ? new Set(allowedSizes.map(size => normalizeName(size).toUpperCase()))
+    : null;
+
+  rows.forEach((row) => {
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
+    if (allowedSizeSet && !allowedSizeSet.has(normalizeName(row.tamanho).toUpperCase())) return;
+
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
 function mapHistoricalSizesToNewSizes(newSizes, historicalSizeTotals) {
   const mapped = new Map(newSizes.map(size => [size, 0]));
   const sortedNewSizes = sortSizes(newSizes);
@@ -244,6 +400,7 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
   const grupos = new Map();
   const skuCounts = new Map();
   const linhaFamiliaNova = getLinha(familiaNova);
+  const familiaNovaKey = normalizeName(familiaNova).toUpperCase();
 
   skusFamilia.forEach((sku) => {
     if (!grupos.has(sku.grupo)) grupos.set(sku.grupo, new Set());
@@ -317,6 +474,92 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
         });
       });
     }
+
+    novosSobra.forEach((subgrupo) => {
+      const key = `${grupo}|${subgrupo}`;
+      if (mapping.has(key)) return;
+
+      const subgroupDepara = SPECIAL_SUBGROUP_DEPARA[`${familiaNovaKey}|${grupo}|${subgrupo}`];
+      if (subgroupDepara && histTotals.has(subgroupDepara)) {
+        mapping.set(key, {
+          grupoHist: grupo,
+          subgrupoHist: subgroupDepara,
+          histSubgrupos: [subgroupDepara],
+          matchTipo: 'DEPARA_SUBGRUPO',
+          vendaBaseOverride: Number(histTotals.get(subgroupDepara) || 0)
+        });
+        return;
+      }
+
+      const lineAverage = getLineGroupSubgroupReferenceAverage(
+        rows,
+        linhaFamiliaNova,
+        grupo,
+        subgrupo,
+        historicalFamilyLineMap
+      );
+
+      if (lineAverage.average > 0) {
+        mapping.set(key, {
+          grupoHist: grupo,
+          subgrupoHist: subgrupo,
+          histSubgrupos: [subgrupo],
+          matchTipo: 'FALLBACK_LINHA',
+          vendaBaseOverride: lineAverage.average,
+          linhaBase: linhaFamiliaNova,
+          refsComparaveis: lineAverage.referenceCount
+        });
+        return;
+      }
+
+      const groupAverage = getGroupSubgroupReferenceAverage(rows, grupo, subgrupo);
+      if (groupAverage.average <= 0) return;
+
+      mapping.set(key, {
+        grupoHist: grupo,
+        subgrupoHist: subgrupo,
+        histSubgrupos: [subgrupo],
+        matchTipo: 'FALLBACK_GRUPO_SUBGRUPO',
+        vendaBaseOverride: groupAverage.average,
+        refsComparaveis: groupAverage.referenceCount
+      });
+    });
+
+    const mappingsByHistoricalSource = new Map();
+    novosSubgrupos.forEach((subgrupo) => {
+      const key = `${grupo}|${subgrupo}`;
+      const mapped = mapping.get(key);
+      if (!mapped || !mapped.histSubgrupos || mapped.histSubgrupos.length !== 1) return;
+      if (mapped.vendaBaseOverride !== undefined && mapped.matchTipo !== 'DEPARA_SUBGRUPO') return;
+
+      const sourceSubgroup = mapped.histSubgrupos[0];
+      if (!histTotals.has(sourceSubgroup)) return;
+      const sourceKey = `${mapped.grupoHist}|${sourceSubgroup}`;
+      if (!mappingsByHistoricalSource.has(sourceKey)) mappingsByHistoricalSource.set(sourceKey, []);
+      mappingsByHistoricalSource.get(sourceKey).push({ key, subgrupo, mapped });
+    });
+
+    mappingsByHistoricalSource.forEach((items) => {
+      const hasDepara = items.some(item => item.mapped.matchTipo === 'DEPARA_SUBGRUPO');
+      if (!hasDepara || items.length <= 1) return;
+
+      const sourceSubgroup = items[0].mapped.histSubgrupos[0];
+      const sourceBase = Number(histTotals.get(sourceSubgroup) || 0);
+      const totalSkus = items.reduce(
+        (sum, item) => sum + Number(skuCounts.get(item.key) || 0),
+        0
+      );
+
+      items.forEach((item) => {
+        const skuCount = Number(skuCounts.get(item.key) || 0);
+        const share = totalSkus > 0 ? skuCount / totalSkus : 1 / items.length;
+        mapping.set(item.key, {
+          ...item.mapped,
+          matchTipo: item.mapped.matchTipo === 'DEPARA_SUBGRUPO' ? 'DEPARA_SUBGRUPO_POOL' : `${item.mapped.matchTipo}_POOL`,
+          vendaBaseOverride: sourceBase * share
+        });
+      });
+    });
   });
 
   return mapping;
@@ -421,7 +664,7 @@ function buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaF
   return result;
 }
 
-function buildFilterOptions({ lojas, planoRows }) {
+function buildFilterOptions({ lojas, planoRows, meses = fmtMonthPlan.map((row) => row.mes) }) {
   const unique = (key) => Array.from(new Set(planoRows.map((row) => normalizeName(row[key])).filter(Boolean))).sort();
   return {
     empresas: ['TODAS', ...lojas],
@@ -430,7 +673,7 @@ function buildFilterOptions({ lojas, planoRows }) {
     grupos: ['TODAS', ...unique('grupo')],
     continuidades: ['TODAS', ...unique('continuidade')],
     colecoes: ['TODAS', ...unique('colecao')],
-    meses: ['TODOS', ...fmtMonthPlan.map((row) => row.mes)],
+    meses: ['TODOS', ...meses],
     referencias: ['TODAS', ...unique('ref')]
   };
 }
@@ -444,15 +687,62 @@ function buildMonthPlan(totalPlano) {
   }));
 }
 
+function buildMonthPlanWithSpecial(totalPlano, specialMonthPlan) {
+  const specialTotal = Object.values(specialMonthPlan).reduce((sum, value) => sum + Number(value || 0), 0);
+  const genericTotal = Math.max(totalPlano - specialTotal, 0);
+  const byMonth = new Map(buildMonthPlan(genericTotal).map(row => [row.mes, row.valor]));
+
+  Object.entries(specialMonthPlan).forEach(([mes, valor]) => {
+    byMonth.set(mes, (byMonth.get(mes) || 0) + Number(valor || 0));
+  });
+
+  const monthOrder = [
+    ...fmtMonthPlan.map(row => row.mes),
+    'NOVEMBRO',
+    'DEZEMBRO'
+  ];
+
+  return monthOrder
+    .filter((mes, index, arr) => arr.indexOf(mes) === index)
+    .filter(mes => byMonth.has(mes) && byMonth.get(mes) !== 0)
+    .map(mes => ({ mes, valor: byMonth.get(mes) || 0 }));
+}
+
 // Lojas que devem sempre estar no plano (mesmo sem historico)
 // ECOMMERCE com 1.5% baseado em vendas recentes (92 pecas/3 meses)
 const LOJAS_OBRIGATORIAS = {
   'ECOMMERCE': 0.015  // 1.5% do plano (baseado em vendas recentes)
 };
 
+function ajustarDistribuicaoPortelle(familiaNova, planoPorLoja, planoTotal) {
+  if (normalizeName(familiaNova).toUpperCase() !== 'PORTELLE') {
+    return planoPorLoja;
+  }
+
+  const lojasPermitidas = Object.keys(planoPorLoja).filter(loja => normalizeStoreName(loja).toUpperCase() !== 'TABOSA');
+  const totalPermitidoAtual = lojasPermitidas.reduce((sum, loja) => sum + Number(planoPorLoja[loja] || 0), 0);
+  const adjusted = { ...planoPorLoja };
+
+  adjusted.TABOSA = 0;
+
+  const values = roundToTotal(
+    lojasPermitidas,
+    loja => totalPermitidoAtual > 0
+      ? planoTotal * (Number(planoPorLoja[loja] || 0) / totalPermitidoAtual)
+      : planoTotal / lojasPermitidas.length,
+    planoTotal
+  );
+
+  lojasPermitidas.forEach((loja, index) => {
+    adjusted[loja] = values[index] || 0;
+  });
+
+  return adjusted;
+}
+
 // Funcao principal: constroi dashboard a partir das vendas do cache
 // usando SKUs do Excel e regras de de-para
-export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
+export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBaseRows = [] } = {}) {
   // Carregar SKUs do Excel e de-para
   const skusExcel = loadSkusVerao27();
   const depara = loadDeparaFamilias();
@@ -480,10 +770,13 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
   const vendasPorGrupo = {};
   const vendasPorSubgrupo = {};
   const lojas = new Set();
+  const specialRowsByFamily = new Map();
+  const specialMonthPlan = {};
 
   for (const row of rows) {
     const loja = normalizeStoreName(row.empresa);
     const familia = normalizeName(row.familia).toUpperCase();
+    if (SPECIAL_INVERNO26_FAMILIES.has(familia)) continue;
     const grupo = normalizeName(row.grupo).toUpperCase();
     const subgrupo = normalizeName(row.subgrupo).toUpperCase();
     lojas.add(loja);
@@ -535,6 +828,64 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
     vendasPorFamiliaRef[keyFR].venda += Number(row.venda || 0);
   }
 
+  for (const row of specialBaseRows) {
+    const loja = normalizeStoreName(row.empresa);
+    const familia = normalizeName(row.familia).toUpperCase();
+    if (!SPECIAL_INVERNO26_FAMILIES.has(familia)) continue;
+
+    const grupo = normalizeName(row.grupo).toUpperCase();
+    const subgrupo = normalizeName(row.subgrupo).toUpperCase();
+    const venda = Number(row.venda || 0);
+    lojas.add(loja);
+
+    if (!specialRowsByFamily.has(familia)) specialRowsByFamily.set(familia, []);
+    specialRowsByFamily.get(familia).push(row);
+
+    const keyFL = `${familia}|${loja}`;
+    vendasPorFamiliaLoja[keyFL] = (vendasPorFamiliaLoja[keyFL] || 0) + venda;
+
+    const keyFGSL = `${familia}|${grupo}|${subgrupo}|${loja}`;
+    vendasPorFamiliaGrupoSubgrupoLoja[keyFGSL] = (vendasPorFamiliaGrupoSubgrupoLoja[keyFGSL] || 0) + venda;
+    const keyFGS = `${familia}|${grupo}|${subgrupo}`;
+    vendasPorFamiliaGrupoSubgrupo[keyFGS] = (vendasPorFamiliaGrupoSubgrupo[keyFGS] || 0) + venda;
+
+    vendasPorGrupo[grupo] = (vendasPorGrupo[grupo] || 0) + venda;
+    vendasPorSubgrupo[subgrupo] = (vendasPorSubgrupo[subgrupo] || 0) + venda;
+
+    const ref = normalizeName(row.referencia, row.idproduto);
+    const cor = normalizeName(row.cor).toUpperCase();
+    const tam = normalizeName(row.tamanho).toUpperCase();
+
+    historicoVendasData.push({
+      empresa: loja,
+      familia,
+      grupo,
+      subgrupo,
+      ref,
+      cor,
+      tam,
+      valor: venda,
+      baseOrigem: 'INVERNO 26',
+      mesOrigem: Number(row.mes_origem || 0)
+    });
+
+    const keyFR = `${familia}|${ref}|${cor}|${tam}`;
+    if (!vendasPorFamiliaRef[keyFR]) {
+      vendasPorFamiliaRef[keyFR] = {
+        familia,
+        ref,
+        cor,
+        tam,
+        grupo,
+        subgrupo,
+        classificacao: normalizeName(row.classificacao),
+        continuidade: normalizeName(row.continuidade),
+        venda: 0
+      };
+    }
+    vendasPorFamiliaRef[keyFR].venda += venda;
+  }
+
   // Adicionar lojas obrigatorias que nao estao no historico
   for (const loja of Object.keys(LOJAS_OBRIGATORIAS)) {
     lojas.add(loja);
@@ -569,21 +920,51 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
   for (const familiaNova of Object.keys(skusPorFamilia)) {
     const familiaHist = getFamiliaHistorica(familiaNova);
     const temDePara = ehDePara(familiaNova);
+    const familiaKey = normalizeName(familiaNova).toUpperCase();
+    const specialRowsFamilia = specialRowsByFamily.get(familiaKey) || [];
+    const usaBaseInverno26 = SPECIAL_INVERNO26_FAMILIES.has(familiaKey) && specialRowsFamilia.length > 0;
 
     // Buscar vendas da familia historica
     const vendasPorLoja = {};
     let vendaTotalFamilia = 0;
 
     for (const loja of lojasArray) {
-      const key = `${familiaHist}|${loja}`;
+      const key = `${usaBaseInverno26 ? familiaKey : familiaHist}|${loja}`;
       const venda = vendasPorFamiliaLoja[key] || 0;
       vendasPorLoja[loja] = venda;
       vendaTotalFamilia += venda;
     }
 
     // Calcular plano usando regras
-    const resultado = calcularPlanoFamilia(familiaNova, vendaTotalFamilia);
+    const resultado = usaBaseInverno26
+      ? {
+          plano: Math.round(vendaTotalFamilia * (1 + CRESCIMENTO_PADRAO)),
+          regra: 'base_inverno26',
+          baseEspecial: vendaTotalFamilia,
+          crescimento: CRESCIMENTO_PADRAO,
+          obs: 'Base Inverno 26 jan-jun/2026 + 10%, aberta por grupo/subgrupo/tamanho/loja'
+        }
+      : calcularPlanoFamilia(familiaNova, vendaTotalFamilia);
     const planoTotal = resultado.plano;
+
+    if (usaBaseInverno26) {
+      const monthBase = {};
+      specialRowsFamilia.forEach((row) => {
+        const mesPlano = SPECIAL_MONTH_DEPARA[Number(row.mes_origem || 0)];
+        if (!mesPlano) return;
+        monthBase[mesPlano] = (monthBase[mesPlano] || 0) + Number(row.venda || 0);
+      });
+
+      const monthRows = Object.entries(monthBase).map(([mes, base]) => ({ mes, base }));
+      const monthValues = roundToTotal(
+        monthRows,
+        row => row.base * (1 + CRESCIMENTO_PADRAO),
+        planoTotal
+      );
+      monthRows.forEach((row, index) => {
+        specialMonthPlan[row.mes] = (specialMonthPlan[row.mes] || 0) + (monthValues[index] || 0);
+      });
+    }
 
     // Distribuir por loja (com tratamento especial para lojas sem historico)
     let planoPorLoja = distribuirPlanoPorLoja(planoTotal, vendasPorLoja);
@@ -598,8 +979,6 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
         planoReservado += planoLoja;
       }
     }
-
-    planoPorLojaFallback.set(familiaNova, planoPorLoja);
 
     // Se houve reserva, ajustar as outras lojas proporcionalmente
     if (planoReservado > 0) {
@@ -631,10 +1010,13 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
       }
     }
 
+    planoPorLoja = ajustarDistribuicaoPortelle(familiaNova, planoPorLoja, planoTotal);
+    planoPorLojaFallback.set(familiaNova, planoPorLoja);
+
     // Para familias com base_especial, SEMPRE usar a base especial para exibicao
     // Isso garante que PORTELLE, LACE, RENDAS, etc mostrem a base correta
     let vendasParaExibir = vendasPorLoja;
-    if (resultado.regra === 'base_especial' && resultado.baseEspecial) {
+    if (resultado.regra === 'base_especial' && resultado.baseEspecial && !usaBaseInverno26) {
       // Distribuir a base especial proporcionalmente ao plano por loja
       const baseTotal = resultado.baseEspecial;
       vendasParaExibir = {};
@@ -683,11 +1065,13 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
         });
       });
     } else {
+      const rowsBaseFamilia = usaBaseInverno26 ? specialRowsFamilia : rows;
+      const vendasGrupoSubgrupoBase = vendasPorFamiliaGrupoSubgrupo;
       const subgroupMapping = buildSubgroupMapping(
         skusFamilia,
-        vendasPorFamiliaGrupoSubgrupo,
-        familiaHist,
-        rows,
+        vendasGrupoSubgrupoBase,
+        usaBaseInverno26 ? familiaKey : familiaHist,
+        rowsBaseFamilia,
         familiaNova,
         historicalFamilyLineMap
       );
@@ -702,6 +1086,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
       });
 
       let planoAlocadoSubgrupos = 0;
+      let vendaBaseAlocadaSubgrupos = 0;
       const gruposSemBase = [];
 
       Object.entries(skusPorGrupoSubgrupo).forEach(([key, skusGrupoSubgrupo]) => {
@@ -711,7 +1096,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
           subgrupoHist: subgrupo,
           matchTipo: 'SEM_MATCH'
         };
-        const histKey = `${familiaHist}|${mapped.grupoHist}|${mapped.subgrupoHist}`;
+        const histKey = `${usaBaseInverno26 ? familiaKey : familiaHist}|${mapped.grupoHist}|${mapped.subgrupoHist}`;
         const vendaBaseSubgrupo = mapped.vendaBaseOverride !== undefined
           ? Number(mapped.vendaBaseOverride || 0)
           : Number(vendasPorFamiliaGrupoSubgrupo[histKey] || 0);
@@ -722,11 +1107,22 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
         }
 
         const planoSubgrupo = Math.ceil(vendaBaseSubgrupo * (1 + CRESCIMENTO_PADRAO));
+        vendaBaseAlocadaSubgrupos += vendaBaseSubgrupo;
         const histSubgrupos = mapped.histSubgrupos || String(mapped.subgrupoHist || subgrupo).split(' + ');
-        const primarySizeTotals = mapped.matchTipo === 'POOL_LINHA'
-          ? getLineSubgroupSizeTotals(rows, mapped.linhaBase || getLinha(familiaNova), grupo, subgrupo, historicalFamilyLineMap)
-          : getFamilySubgroupSizeTotals(rows, familiaHist, mapped.grupoHist || grupo, histSubgrupos);
-        const fallbackSizeTotals = getFamilyGroupSizeTotals(rows, familiaHist, mapped.grupoHist || grupo);
+        let primarySizeTotals;
+        if (mapped.matchTipo === 'FALLBACK_LINHA') {
+          primarySizeTotals = getLineSubgroupSizeTotals(rowsBaseFamilia, mapped.linhaBase || getLinha(familiaNova), grupo, subgrupo, historicalFamilyLineMap);
+        } else if (mapped.matchTipo === 'FALLBACK_GRUPO_SUBGRUPO') {
+          primarySizeTotals = getGroupSubgroupSizeTotals(
+            rowsBaseFamilia,
+            grupo,
+            subgrupo,
+            skusGrupoSubgrupo.map(sku => sku.tamanho)
+          );
+        } else {
+          primarySizeTotals = getFamilySubgroupSizeTotals(rowsBaseFamilia, usaBaseInverno26 ? familiaKey : familiaHist, mapped.grupoHist || grupo, histSubgrupos);
+        }
+        const fallbackSizeTotals = getFamilyGroupSizeTotals(rowsBaseFamilia, usaBaseInverno26 ? familiaKey : familiaHist, mapped.grupoHist || grupo);
         const distribuicao = distributeSkusBySizeTarget(
           skusGrupoSubgrupo,
           planoSubgrupo,
@@ -744,12 +1140,16 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
       });
 
       const planoRestanteSemBase = Math.max(planoTotal - planoAlocadoSubgrupos, 0);
+      const vendaBaseRestanteSemBase = Math.max(vendaTotalFamilia - vendaBaseAlocadaSubgrupos, 0);
       const skusSemBase = gruposSemBase.flatMap(group => group.skus);
       const distribuicaoSemBase = distributeBySubgroupTarget(skusSemBase, planoRestanteSemBase);
+      const vendaBaseSkuSemBase = skusSemBase.length > 0
+        ? Math.round((vendaBaseRestanteSemBase / skusSemBase.length) * 100) / 100
+        : 0;
       gruposSemBase.forEach(({ skus, mapped }) => {
         skus.forEach((sku) => {
           planoPorSku.set(sku, distribuicaoSemBase.get(sku) || 0);
-          vendaBasePorSku.set(sku, 0);
+          vendaBasePorSku.set(sku, vendaBaseSkuSemBase);
           matchPorSku.set(sku, mapped);
         });
       });
@@ -806,6 +1206,9 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
   console.log('[dashboardBuilder] Total venda base:', totalVenda);
   console.log('[dashboardBuilder] Total plano:', totalPlano);
 
+  const mesProducaoData = buildMonthPlanWithSpecial(totalPlano, specialMonthPlan);
+  const mesesPlano = mesProducaoData.map(row => row.mes);
+
   return {
     meta: {
       origem: 'banco',
@@ -814,7 +1217,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
       familiasProcessadas: familiasDashboard.length,
       skusProcessados: planoRows.length
     },
-    filterOptions: buildFilterOptions({ lojas: lojasArray, planoRows }),
+    filterOptions: buildFilterOptions({ lojas: lojasArray, planoRows, meses: mesesPlano }),
     kpiData: {
       plano2026: totalPlano,
       plano2026Original: totalPlano,
@@ -840,7 +1243,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
       .sort((a, b) => b.valor - a.valor),
     refData: groupSum(planoRows, 'ref'),
     refData2025: groupSum(planoRows, 'ref', 'vendaBase'),
-    mesProducaoData: buildMonthPlan(totalPlano),
+    mesProducaoData,
     mesVenda2025Data: buildMonthPlan(totalVenda),
     historicoVendasData,
     planoEdicaoLimitadaData: planoRows,
@@ -852,7 +1255,8 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {} } = {}) {
         plano2026: f.plano2026
       })),
       // NOVO: Vendas por familia+grupo+subgrupo+loja para distribuicao granular no PCP
-      vendasPorFamiliaGrupoSubgrupoLoja: vendasPorFamiliaGrupoSubgrupoLoja
+      vendasPorFamiliaGrupoSubgrupoLoja: vendasPorFamiliaGrupoSubgrupoLoja,
+      historicoVendasData
     },
     mapeamentoFamiliasData: {
       lojas: lojasArray,

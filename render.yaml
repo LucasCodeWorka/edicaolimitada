@@ -5,10 +5,21 @@ services:
     buildCommand: npm install && npm run build
     startCommand: node server/index.js
     pullRequestPreviewsEnabled: true
+    autoDeploy: true
     envVars:
       - key: NODE_VERSION
-        value: 18
+        value: 20
       - key: VITE_DASHBOARD_DATA_SOURCE
         value: db
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
       - key: DB_SSL
         value: true

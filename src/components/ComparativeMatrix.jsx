@@ -3,7 +3,18 @@ import { ChevronRight, ChevronDown, X, Expand, Minimize2, Calculator, Download }
 import { exportComparativoLojas, exportComparativoDetalhado } from '../utils/exportExcel';
 
 // Lojas excluídas para famílias de tamanhos maiores (PLUS)
-const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'ECOMMERCE'];
+const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'JOKEY', 'ECOMMERCE'];
+const LOJAS_PEQUENAS_PORTELLE = [
+  'DOM LUIS',
+  'ECOMMERCE',
+  'INTIMATES',
+  'MORUMBI',
+  'NORTH',
+  'NORTH JOQUEI',
+  'PARANGABA',
+  'RIOMAR KENNEDY',
+  'TABOSA'
+];
 
 // Verifica se a família é de tamanhos maiores (PLUS)
 const ehFamiliaTamanhoMaior = (familia) => {
@@ -17,6 +28,17 @@ const lojaExcluidaTamanhoMaior = (loja) => {
   return LOJAS_EXCLUIDAS_TAM_MAIOR.some(excl => lojaUpper.includes(excl.toUpperCase()));
 };
 
+const ehPortelle = (familia) => String(familia || '').toUpperCase().trim() === 'PORTELLE';
+
+const lojaPequenaPortelle = (loja) => {
+  const lojaUpper = String(loja || '').toUpperCase().trim();
+  return LOJAS_PEQUENAS_PORTELLE.some(excl => lojaUpper.includes(excl.toUpperCase()));
+};
+
+const lojaSemPortelle = (loja) => String(loja || '').toUpperCase().trim() === 'TABOSA';
+
+const corBloqueadaPortelle = (cor) => String(cor || '').toUpperCase().trim() !== 'PRETO';
+
 // Formatador de números
 const fmt = (v, dec = 0) => Number(v || 0).toLocaleString('pt-BR', {
   minimumFractionDigits: dec,
@@ -25,11 +47,25 @@ const fmt = (v, dec = 0) => Number(v || 0).toLocaleString('pt-BR', {
 
 const soma = (valores = []) => valores.reduce((acc, valor) => acc + (Number(valor) || 0), 0);
 
+const addLojaTotals = (target, source = {}) => {
+  Object.entries(source).forEach(([loja, valor]) => {
+    target[loja] = (target[loja] || 0) + Number(valor || 0);
+  });
+};
+
 const getFamiliaDisplayName = (familia) => {
   if (familia === 'CONFORT VANILLA') {
     return 'BASICOS';
   }
   return familia;
+};
+
+const aplicarArredondamentoRegra = (valor) => {
+  if (valor <= 0) return 0;
+  if (valor < 1) return 1;
+  if (valor < 1.5) return 1;
+  if (valor < 2) return 2;
+  return Math.floor(valor);
 };
 
 const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdicaoLimitadaData = [] }) => {
@@ -123,7 +159,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     return participacao;
   };
 
-  // Distribuir valor proporcionalmente usando algoritmo largest remainder
+  // Distribuir valor proporcionalmente usando a regra de arredondamento do plano
   const distribuirProporcional = (total, participacao, lojasValidas) => {
     if (total === 0 || lojasValidas.length === 0) return {};
 
@@ -147,17 +183,20 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     lojasValidas.forEach(loja => {
       const partNorm = (participacao[loja] || 0) / totalPart;
       const valorExato = total * partNorm;
-      const valorFloor = Math.floor(valorExato);
-      result[loja] = valorFloor;
-      soma += valorFloor;
-      restos.push({ loja, resto: valorExato - valorFloor });
+      const valorArredondado = aplicarArredondamentoRegra(valorExato);
+      result[loja] = valorArredondado;
+      soma += valorArredondado;
+      restos.push({ loja, resto: valorExato - Math.floor(valorExato) });
     });
 
-    // Distribuir o resto usando largest remainder
+    // Se ainda faltar quantidade, distribuir o resto usando largest remainder.
+    // Se a regra de minimo arredondou para cima, mantem a protecao de 1 peca.
     let falta = total - soma;
-    restos.sort((a, b) => b.resto - a.resto);
-    for (let i = 0; i < falta && i < restos.length; i++) {
-      result[restos[i].loja] += 1;
+    if (falta > 0) {
+      restos.sort((a, b) => b.resto - a.resto);
+      for (let i = 0; i < falta && i < restos.length; i++) {
+        result[restos[i].loja] += 1;
+      }
     }
 
     return result;
@@ -171,14 +210,20 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     const refs = {};
     skus.forEach(sku => {
       if (!refs[sku.ref]) {
-        refs[sku.ref] = { cores: {}, total: 0 };
+        refs[sku.ref] = { cores: {}, total: 0, lojas: {} };
       }
       if (!refs[sku.ref].cores[sku.cor]) {
-        refs[sku.ref].cores[sku.cor] = { tamanhos: {}, total: 0 };
+        refs[sku.ref].cores[sku.cor] = { tamanhos: {}, total: 0, lojas: {} };
       }
-      refs[sku.ref].cores[sku.cor].tamanhos[sku.tam] = sku.plano;
+      const lojasSku = sku.planoDistribuidoLojas || {};
+      refs[sku.ref].cores[sku.cor].tamanhos[sku.tam] = {
+        total: sku.plano,
+        lojas: lojasSku
+      };
       refs[sku.ref].cores[sku.cor].total += sku.plano;
       refs[sku.ref].total += sku.plano;
+      addLojaTotals(refs[sku.ref].lojas, lojasSku);
+      addLojaTotals(refs[sku.ref].cores[sku.cor].lojas, lojasSku);
     });
 
     return refs;
@@ -409,12 +454,15 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                     const refKey = `ref_${familia.nome}_${refName}`;
                     const isRefExpanded = expanded[refKey];
                     const isTamMaior = ehFamiliaTamanhoMaior(familia.nome);
+                    const isPortelle = ehPortelle(familia.nome);
                     // Participação de cada loja na família
-                    const participacaoFamilia = getParticipacaoLojasNaFamilia(familia);
                     // Lojas válidas (excluindo proibidas para tam. maior)
-                    const lojasValidas = lojasFiltradas.filter(loja => !isTamMaior || !lojaExcluidaTamanhoMaior(loja));
+                    const lojasValidas = lojasFiltradas.filter(loja =>
+                      (!isTamMaior || !lojaExcluidaTamanhoMaior(loja)) &&
+                      (!isPortelle || !lojaSemPortelle(loja))
+                    );
                     // Distribuição proporcional da referência
-                    const distRef = distribuirProporcional(refData.total, participacaoFamilia, lojasValidas);
+                    const distRef = refData.lojas || {};
 
                     return (
                       <React.Fragment key={refIdx}>
@@ -429,7 +477,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                             </div>
                           </td>
                           {lojasFiltradas.map((loja, i) => {
-                            const lojaExcluida = isTamMaior && lojaExcluidaTamanhoMaior(loja);
+                            const lojaExcluida =
+                              (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+                              (isPortelle && lojaSemPortelle(loja));
                             return (
                               <React.Fragment key={i}>
                                 <td className="px-2 py-1.5 text-right text-[10px] text-gray-400 border-l border-slate-200 bg-slate-100">—</td>
@@ -452,8 +502,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                         {isRefExpanded && Object.entries(refData.cores).map(([corName, corData], corIdx) => {
                           const corKey = `cor_${familia.nome}_${refName}_${corName}`;
                           const isCorExpanded = expanded[corKey];
+                          const lojasValidasCor = lojasValidas.filter(loja =>
+                            !isPortelle ||
+                            (!lojaSemPortelle(loja) && (!corBloqueadaPortelle(corName) || !lojaPequenaPortelle(loja)))
+                          );
                           // Distribuição proporcional da cor
-                          const distCor = distribuirProporcional(corData.total, participacaoFamilia, lojasValidas);
+                          const distCor = corData.lojas || {};
 
                           return (
                             <React.Fragment key={corIdx}>
@@ -468,7 +522,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                                   </div>
                                 </td>
                                 {lojasFiltradas.map((loja, i) => {
-                                  const lojaExcluida = isTamMaior && lojaExcluidaTamanhoMaior(loja);
+                                  const lojaExcluida =
+                                    (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+                                    (isPortelle && (lojaSemPortelle(loja) || (corBloqueadaPortelle(corName) && lojaPequenaPortelle(loja))));
                                   return (
                                     <React.Fragment key={i}>
                                       <td className="px-2 py-1.5 text-right text-[10px] text-gray-400 border-l border-violet-100 bg-violet-50">—</td>
@@ -488,9 +544,10 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                               </tr>
 
                               {/* Tamanhos */}
-                              {isCorExpanded && Object.entries(corData.tamanhos).map(([tamName, tamValor], tamIdx) => {
+                              {isCorExpanded && Object.entries(corData.tamanhos).map(([tamName, tamData], tamIdx) => {
                                 // Distribuição proporcional do tamanho (SKU)
-                                const distTam = distribuirProporcional(tamValor, participacaoFamilia, lojasValidas);
+                                const tamValor = Number(tamData?.total || 0);
+                                const distTam = tamData?.lojas || {};
                                 return (
                                   <tr key={tamIdx} className="bg-teal-50 hover:bg-teal-100 transition-colors">
                                     <td className="px-3 py-1 sticky left-0 bg-teal-50 z-10 min-w-[200px]">
@@ -500,7 +557,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                                       </div>
                                     </td>
                                     {lojasFiltradas.map((loja, i) => {
-                                      const lojaExcluida = isTamMaior && lojaExcluidaTamanhoMaior(loja);
+                                      const lojaExcluida =
+                                        (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+                                        (isPortelle && (lojaSemPortelle(loja) || (corBloqueadaPortelle(corName) && lojaPequenaPortelle(loja))));
                                       return (
                                         <React.Fragment key={i}>
                                           <td className="px-2 py-1 text-right text-[10px] text-gray-400 border-l border-teal-100 bg-teal-50">—</td>
