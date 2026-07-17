@@ -60,6 +60,10 @@ function getDisplayColor(familia, cor) {
   return SPECIAL_COLOR_MAP[familiaKey]?.[corKey] || cor;
 }
 
+function isContinuidadadeEdicaoLimitada(continuidade) {
+  return normalizeName(continuidade).toUpperCase() === 'EDICAO LIMITADA';
+}
+
 function getLoveAppealAllowedSizes(sku) {
   if (normalizeName(sku.familia).toUpperCase() !== 'LOVE APPEAL') return null;
 
@@ -168,6 +172,82 @@ function applySpecialFamilyColorTargets(planoRows) {
           : targetBase / colorRows.length;
         row.vendaBase = Math.round(base * 100) / 100;
       });
+    });
+  });
+}
+
+function getLargeSizeSet(grupo) {
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  if (grupoKey.includes('SUTIA')) return new Set(['48', '50']);
+  if (grupoKey.includes('CALCA')) return new Set(['GG', 'XG']);
+  return new Set();
+}
+
+function rebalanceRegularReferenceLargeSizes(planoRows) {
+  const rowsByReferenceColor = new Map();
+
+  planoRows.forEach((row) => {
+    if (!isContinuidadadeEdicaoLimitada(row.continuidade)) return;
+    if (normalizeName(row.ref).toUpperCase().startsWith('70')) return;
+
+    const largeSizes = getLargeSizeSet(row.grupo);
+    if (!largeSizes.has(normalizeName(row.tam).toUpperCase())) return;
+
+    const key = [
+      normalizeName(row.familia).toUpperCase(),
+      normalizeName(row.ref).toUpperCase(),
+      normalizeName(row.cor).toUpperCase(),
+      normalizeName(row.grupo).toUpperCase()
+    ].join('|');
+
+    if (!rowsByReferenceColor.has(key)) {
+      rowsByReferenceColor.set(key, planoRows.filter(candidate => (
+        normalizeName(candidate.familia).toUpperCase() === normalizeName(row.familia).toUpperCase() &&
+        normalizeName(candidate.ref).toUpperCase() === normalizeName(row.ref).toUpperCase() &&
+        normalizeName(candidate.cor).toUpperCase() === normalizeName(row.cor).toUpperCase() &&
+        normalizeName(candidate.grupo).toUpperCase() === normalizeName(row.grupo).toUpperCase()
+      )));
+    }
+  });
+
+  rowsByReferenceColor.forEach((rows) => {
+    const largeSizes = getLargeSizeSet(rows[0]?.grupo);
+    const normalRows = rows.filter(row => !largeSizes.has(normalizeName(row.tam).toUpperCase()));
+    const largeRows = rows.filter(row => largeSizes.has(normalizeName(row.tam).toUpperCase()));
+    if (normalRows.length === 0 || largeRows.length === 0) return;
+
+    const minNormal = Math.min(...normalRows.map(row => Number(row.plano || 0)).filter(value => value > 0));
+    if (!Number.isFinite(minNormal) || minNormal <= 0) return;
+
+    let excessoPlano = 0;
+    let excessoBase = 0;
+
+    largeRows.forEach((row) => {
+      const planoAtual = Number(row.plano || 0);
+      if (planoAtual <= minNormal) return;
+
+      const novoPlano = minNormal;
+      const ratio = planoAtual > 0 ? novoPlano / planoAtual : 0;
+      excessoPlano += planoAtual - novoPlano;
+      excessoBase += Number(row.vendaBase || 0) * (1 - ratio);
+      row.plano = novoPlano;
+      row.vendaBase = Math.round(Number(row.vendaBase || 0) * ratio * 100) / 100;
+    });
+
+    if (excessoPlano <= 0) return;
+
+    const normalTotal = normalRows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+    const planoValues = roundToTotal(
+      normalRows,
+      row => Number(row.plano || 0) + (normalTotal > 0 ? excessoPlano * (Number(row.plano || 0) / normalTotal) : excessoPlano / normalRows.length),
+      normalTotal + excessoPlano
+    );
+
+    normalRows.forEach((row, index) => {
+      const planoAntes = Number(row.plano || 0);
+      const planoDepois = planoValues[index] || 0;
+      row.plano = planoDepois;
+      row.vendaBase = Math.round((Number(row.vendaBase || 0) + (excessoBase * (normalTotal > 0 ? planoAntes / normalTotal : 1 / normalRows.length))) * 100) / 100;
     });
   });
 }
@@ -487,6 +567,12 @@ function sizeRank(size) {
   return index >= 0 ? 1000 + index : 2000;
 }
 
+function isNumericSize(size) {
+  const value = normalizeName(size).toUpperCase();
+  const numeric = Number(value.replace(',', '.'));
+  return Number.isFinite(numeric);
+}
+
 function sortSizes(sizes) {
   return [...sizes].sort((a, b) => {
     const rankDiff = sizeRank(a) - sizeRank(b);
@@ -687,9 +773,28 @@ function mapHistoricalSizesToNewSizes(newSizes, historicalSizeTotals) {
     return mapped;
   }
 
-  sortedHistoricalSizes.forEach((historicalSize, index) => {
-    const targetIndex = Math.min(index, sortedNewSizes.length - 1);
-    const targetSize = sortedNewSizes[targetIndex];
+  const newSizeSet = new Set(sortedNewSizes);
+  sortedHistoricalSizes.forEach((historicalSize) => {
+    if (!newSizeSet.has(historicalSize)) return;
+    mapped.set(historicalSize, (mapped.get(historicalSize) || 0) + Number(historicalSizeTotals.get(historicalSize) || 0));
+  });
+
+  sortedHistoricalSizes.forEach((historicalSize) => {
+    if (newSizeSet.has(historicalSize)) return;
+
+    const historicalIsNumeric = isNumericSize(historicalSize);
+    const compatibleNewSizes = sortedNewSizes.filter(size => isNumericSize(size) === historicalIsNumeric);
+    const compatibleRanks = compatibleNewSizes.map(sizeRank);
+    const historicalRank = sizeRank(historicalSize);
+    const minRank = Math.min(...compatibleRanks);
+    const maxRank = Math.max(...compatibleRanks);
+    if (!compatibleNewSizes.length || historicalRank < minRank || historicalRank > maxRank) return;
+
+    const targetSize = compatibleNewSizes
+      .map(size => ({ size, distance: Math.abs(sizeRank(size) - sizeRank(historicalSize)) }))
+      .sort((a, b) => a.distance - b.distance || sizeRank(a.size) - sizeRank(b.size))[0]?.size;
+
+    if (!targetSize) return;
     mapped.set(targetSize, (mapped.get(targetSize) || 0) + Number(historicalSizeTotals.get(historicalSize) || 0));
   });
 
@@ -1097,7 +1202,7 @@ function distributeSkusBySizeTarget(skus, targetTotal, vendaBaseTotal, primarySi
   const newSizes = [...skusBySize.keys()];
   const primaryWeights = mapHistoricalSizesToNewSizes(newSizes, primarySizeTotals);
   const fallbackWeights = mapHistoricalSizesToNewSizes(newSizes, fallbackSizeTotals);
-  const weights = extendMissingEdgeSizeWeights(mergeMissingSizeWeights(primaryWeights, fallbackWeights));
+  const weights = mergeMissingSizeWeights(extendMissingEdgeSizeWeights(primaryWeights), fallbackWeights);
   const sizeRows = newSizes.map(size => ({ size, weight: Number(weights.get(size) || 0) }));
   const totalWeight = sizeRows.reduce((sum, row) => sum + row.weight, 0);
 
@@ -1807,6 +1912,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
     }
   }
 
+  rebalanceRegularReferenceLargeSizes(planoRows);
   applySpecialFamilyColorTargets(planoRows);
 
   const planoPorLojaCalculado = buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaFallback);

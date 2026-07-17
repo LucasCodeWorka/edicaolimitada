@@ -316,6 +316,10 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     return familiaUpper.includes('PLUS');
   };
 
+  const ehReferenciaTamanhoMaior = (sku) => {
+    return normalizeKey(sku.ref || sku.referencia).startsWith('70');
+  };
+
   const lojaExcluidaTamanhoMaior = (loja) => {
     const lojaUpper = String(loja).toUpperCase().trim();
     return LOJAS_EXCLUIDAS_TAM_MAIOR.some(excl => lojaUpper.includes(excl.toUpperCase()));
@@ -369,6 +373,11 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     const dataDistribuida = planoData
       .filter(item => item.colecao === 'VERAO 27')
       .map(item => {
+        const isTamMaior = ehFamiliaTamanhoMaior(item.familia) || ehReferenciaTamanhoMaior(item);
+        const isKissMeTamMaiorExcecao = ehKissMeTamanhoMaiorExcecao(item);
+        const isSkuTamMaiorMinimo = ehSkuTamanhoMaiorMinimo(item);
+        const aplicaRegraTamMaiorLimitada = isContinuidadadeEdicaoLimitada(item.continuidade)
+          && (isTamMaior || isSkuTamMaiorMinimo);
         const row = {
           'FamÃ­lia': item.familia,
           'ReferÃªncia': item.ref,
@@ -382,7 +391,27 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
         };
 
         lojasPCP.forEach(loja => {
-          row[loja] = Number(item.planoDistribuidoLojas?.[loja] || 0);
+          const lojaBloqueadaTamanhoMaior =
+            (aplicaRegraTamMaiorLimitada && lojaExcluidaTamanhoMaior(loja)) ||
+            (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA');
+
+          if (lojaBloqueadaTamanhoMaior) {
+            row[loja] = 0;
+            return;
+          }
+
+          let value = Number(item.planoDistribuidoLojas?.[loja] || 0);
+          if (
+            isSkuTamMaiorMinimo &&
+            (aplicaRegraTamMaiorLimitada || isKissMeTamMaiorExcecao) &&
+            !lojaExcluidaTamanhoMaior(loja) &&
+            (!isKissMeTamMaiorExcecao || normalizeKey(loja) === 'MARAPONGA') &&
+            value < 1
+          ) {
+            value = 1;
+          }
+
+          row[loja] = value;
         });
 
         row['Plano Total'] = lojasPCP.reduce((sum, loja) => sum + Number(row[loja] || 0), 0);
@@ -512,9 +541,11 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
   let skusComGeral = 0;
 
   skusVerao27.forEach(sku => {
-    const isTamMaior = ehFamiliaTamanhoMaior(sku.familia);
+    const isTamMaior = ehFamiliaTamanhoMaior(sku.familia) || ehReferenciaTamanhoMaior(sku);
     const isKissMeTamMaiorExcecao = ehKissMeTamanhoMaiorExcecao(sku);
     const isSkuTamMaiorMinimo = ehSkuTamanhoMaiorMinimo(sku);
+    const aplicaRegraTamMaiorLimitada = isContinuidadadeEdicaoLimitada(sku.continuidade)
+      && (isTamMaior || isSkuTamMaiorMinimo);
     const familiaKey = String(sku.familia).toUpperCase().trim();
     const familiaHist = getFamiliaHistorica(familiaKey);
     const grupo = String(sku.grupo || '').toUpperCase().trim();
@@ -575,12 +606,12 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
 
     // Para PLUS ou PORTELLE não-preto, recalcular excluindo lojas proibidas
     let participacaoAjustada = { ...participacaoBase };
-    if (isTamMaior || isKissMeTamMaiorExcecao || ehPortelleNaoPreto(sku)) {
+    if (aplicaRegraTamMaiorLimitada || isKissMeTamMaiorExcecao || ehPortelleNaoPreto(sku)) {
       const vendasAjustadas = {};
       let totalAjustado = 0;
       lojasPCP.forEach(loja => {
         const lojaExcluida =
-          (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+          (aplicaRegraTamMaiorLimitada && lojaExcluidaTamanhoMaior(loja)) ||
           (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA') ||
           (ehPortelle(sku) && lojaSemPortelle(loja)) ||
           (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja));
@@ -609,7 +640,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
 
     lojasPCP.forEach(loja => {
       const lojaExcluida =
-        (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+        (aplicaRegraTamMaiorLimitada && lojaExcluidaTamanhoMaior(loja)) ||
         (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA') ||
         (ehPortelle(sku) && lojaSemPortelle(loja)) ||
         (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja));
@@ -637,7 +668,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
 
     lojasPCP.forEach(loja => {
       const lojaBloqueadaTamanhoMaior =
-        (isTamMaior && lojaExcluidaTamanhoMaior(loja)) ||
+        (aplicaRegraTamMaiorLimitada && lojaExcluidaTamanhoMaior(loja)) ||
         (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA');
 
       if (lojaBloqueadaTamanhoMaior) {
@@ -666,7 +697,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
 
       if (
         isSkuTamMaiorMinimo &&
-        (isTamMaior || isKissMeTamMaiorExcecao) &&
+        (aplicaRegraTamMaiorLimitada || isKissMeTamMaiorExcecao) &&
         isContinuidadadeEdicaoLimitada(sku.continuidade) &&
         !lojaExcluidaTamanhoMaior(loja) &&
         (!isKissMeTamMaiorExcecao || normalizeKey(loja) === 'MARAPONGA') &&
