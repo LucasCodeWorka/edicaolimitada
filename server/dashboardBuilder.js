@@ -40,6 +40,26 @@ const LOVE_APPEAL_ALLOWED_SIZES = {
   SUTIA: new Set(['42', '44'])
 };
 
+const SPECIAL_COLOR_MAP = {
+  VISCOW: {
+    PEAR: 'VERDINHO',
+    LISTRADO: 'LOSTRADO'
+  }
+};
+
+const SPECIAL_FAMILY_COLOR_TARGETS = {
+  VISCOW: {
+    VERDINHO: 0.50,
+    LOSTRADO: 0.50
+  }
+};
+
+function getDisplayColor(familia, cor) {
+  const familiaKey = normalizeName(familia).toUpperCase();
+  const corKey = normalizeName(cor).toUpperCase();
+  return SPECIAL_COLOR_MAP[familiaKey]?.[corKey] || cor;
+}
+
 function getLoveAppealAllowedSizes(sku) {
   if (normalizeName(sku.familia).toUpperCase() !== 'LOVE APPEAL') return null;
 
@@ -98,6 +118,56 @@ function applyLoveAppealSkuRules(skusFamilia, planoPorSku, vendaBasePorSku) {
         : totalBase / allowedSkus.length;
       planoPorSku.set(sku, planoValues[index] || 0);
       vendaBasePorSku.set(sku, Math.round(base * 100) / 100);
+    });
+  });
+}
+
+function applySpecialFamilyColorTargets(planoRows) {
+  Object.entries(SPECIAL_FAMILY_COLOR_TARGETS).forEach(([familia, targets]) => {
+    const familyRows = planoRows.filter(row => normalizeName(row.familia).toUpperCase() === familia);
+    if (familyRows.length === 0) return;
+
+    const targetColors = Object.keys(targets);
+    const rowsByColor = new Map();
+    targetColors.forEach(color => rowsByColor.set(color, []));
+
+    familyRows.forEach((row) => {
+      const color = normalizeName(row.cor).toUpperCase();
+      if (!rowsByColor.has(color)) return;
+      rowsByColor.get(color).push(row);
+    });
+
+    if (targetColors.some(color => (rowsByColor.get(color) || []).length === 0)) return;
+
+    const totalPlano = familyRows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+    const totalBase = familyRows.reduce((sum, row) => sum + Number(row.vendaBase || 0), 0);
+    const colorPlanValues = roundToTotal(
+      targetColors,
+      color => totalPlano * Number(targets[color] || 0),
+      totalPlano
+    );
+
+    targetColors.forEach((color, colorIndex) => {
+      const colorRows = rowsByColor.get(color) || [];
+      const targetPlan = colorPlanValues[colorIndex] || 0;
+      const targetBase = totalBase * Number(targets[color] || 0);
+      const currentPlan = colorRows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+      const currentBase = colorRows.reduce((sum, row) => sum + Number(row.vendaBase || 0), 0);
+      const planValues = roundToTotal(
+        colorRows,
+        row => currentPlan > 0
+          ? targetPlan * (Number(row.plano || 0) / currentPlan)
+          : targetPlan / colorRows.length,
+        targetPlan
+      );
+
+      colorRows.forEach((row, index) => {
+        row.plano = planValues[index] || 0;
+        const base = currentBase > 0
+          ? targetBase * (Number(row.vendaBase || 0) / currentBase)
+          : targetBase / colorRows.length;
+        row.vendaBase = Math.round(base * 100) / 100;
+      });
     });
   });
 }
@@ -224,6 +294,40 @@ function getHistoricSubgroupTotals(vendasPorFamiliaGrupoSubgrupo, familiaHist, g
   return totals;
 }
 
+function getHistoricalReferenceStats(rows, familiaHist, grupo, subgrupos) {
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoSet = new Set(subgrupos.map(subgrupo => normalizeName(subgrupo).toUpperCase()));
+  const totalsByRef = new Map();
+  const skuKeysByRef = new Map();
+
+  rows.forEach((row) => {
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return;
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (!subgrupoSet.has(normalizeName(row.subgrupo).toUpperCase())) return;
+
+    const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (!ref || ref === 'SEM INFO') return;
+
+    totalsByRef.set(ref, (totalsByRef.get(ref) || 0) + Number(row.venda || 0));
+    if (!skuKeysByRef.has(ref)) skuKeysByRef.set(ref, new Set());
+    skuKeysByRef.get(ref).add(`${normalizeName(row.cor).toUpperCase()}|${normalizeName(row.tamanho).toUpperCase()}`);
+  });
+
+  const positiveRefs = [...totalsByRef.entries()]
+    .filter(([, total]) => Number(total || 0) > 0)
+    .map(([ref]) => ref);
+  const total = positiveRefs.reduce((sum, ref) => sum + Number(totalsByRef.get(ref) || 0), 0);
+  const totalSkuCount = positiveRefs.reduce((sum, ref) => sum + Number(skuKeysByRef.get(ref)?.size || 0), 0);
+
+  return {
+    total,
+    referenceCount: positiveRefs.length,
+    average: positiveRefs.length > 0 ? total / positiveRefs.length : 0,
+    averageSkuCount: positiveRefs.length > 0 ? totalSkuCount / positiveRefs.length : 0
+  };
+}
+
 function buildHistoricalFamilyLineMap(depara) {
   const map = new Map();
 
@@ -274,6 +378,7 @@ function getLineGroupSubgroupReferenceAverage(rows, linha, grupo, subgrupo, hist
   const grupoKey = normalizeName(grupo).toUpperCase();
   const subgrupoKey = normalizeName(subgrupo).toUpperCase();
   const totalsByRef = new Map();
+  const skuKeysByRef = new Map();
 
   rows.forEach((row) => {
     if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
@@ -283,18 +388,24 @@ function getLineGroupSubgroupReferenceAverage(rows, linha, grupo, subgrupo, hist
     const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
     if (!ref || ref === 'SEM INFO') return;
     totalsByRef.set(ref, (totalsByRef.get(ref) || 0) + Number(row.venda || 0));
+
+    if (!skuKeysByRef.has(ref)) skuKeysByRef.set(ref, new Set());
+    skuKeysByRef.get(ref).add(`${normalizeName(row.cor).toUpperCase()}|${normalizeName(row.tamanho).toUpperCase()}`);
   });
 
   const positiveTotals = [...totalsByRef.values()].filter(value => value > 0);
   if (positiveTotals.length === 0) {
-    return { average: 0, referenceCount: 0, total: 0 };
+    return { average: 0, referenceCount: 0, total: 0, averageSkuCount: 0 };
   }
 
   const total = positiveTotals.reduce((sum, value) => sum + value, 0);
+  const positiveRefs = [...totalsByRef.entries()].filter(([, value]) => value > 0).map(([ref]) => ref);
+  const totalSkuCount = positiveRefs.reduce((sum, ref) => sum + Number(skuKeysByRef.get(ref)?.size || 0), 0);
   return {
     average: total / positiveTotals.length,
     referenceCount: positiveTotals.length,
-    total
+    total,
+    averageSkuCount: positiveRefs.length > 0 ? totalSkuCount / positiveRefs.length : 0
   };
 }
 
@@ -302,6 +413,7 @@ function getGroupSubgroupReferenceAverage(rows, grupo, subgrupo) {
   const grupoKey = normalizeName(grupo).toUpperCase();
   const subgrupoKey = normalizeName(subgrupo).toUpperCase();
   const totalsByRef = new Map();
+  const skuKeysByRef = new Map();
 
   rows.forEach((row) => {
     if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
@@ -309,6 +421,40 @@ function getGroupSubgroupReferenceAverage(rows, grupo, subgrupo) {
 
     const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
     if (!ref || ref === 'SEM INFO') return;
+    totalsByRef.set(ref, (totalsByRef.get(ref) || 0) + Number(row.venda || 0));
+
+    if (!skuKeysByRef.has(ref)) skuKeysByRef.set(ref, new Set());
+    skuKeysByRef.get(ref).add(`${normalizeName(row.cor).toUpperCase()}|${normalizeName(row.tamanho).toUpperCase()}`);
+  });
+
+  const positiveTotals = [...totalsByRef.values()].filter(value => value > 0);
+  if (positiveTotals.length === 0) {
+    return { average: 0, referenceCount: 0, total: 0, averageSkuCount: 0 };
+  }
+
+  const total = positiveTotals.reduce((sum, value) => sum + value, 0);
+  const positiveRefs = [...totalsByRef.entries()].filter(([, value]) => value > 0).map(([ref]) => ref);
+  const totalSkuCount = positiveRefs.reduce((sum, ref) => sum + Number(skuKeysByRef.get(ref)?.size || 0), 0);
+  return {
+    average: total / positiveTotals.length,
+    referenceCount: positiveTotals.length,
+    total,
+    averageSkuCount: positiveRefs.length > 0 ? totalSkuCount / positiveRefs.length : 0
+  };
+}
+
+function getPrefixReferenceAverage(rows, grupo, subgrupo, prefix) {
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoKey = normalizeName(subgrupo).toUpperCase();
+  const prefixKey = String(prefix || '');
+  const totalsByRef = new Map();
+
+  rows.forEach((row) => {
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (subgrupoKey && normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
+
+    const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (!ref.startsWith(prefixKey)) return;
     totalsByRef.set(ref, (totalsByRef.get(ref) || 0) + Number(row.venda || 0));
   });
 
@@ -509,6 +655,29 @@ function getGroupSubgroupSizeTotals(rows, grupo, subgrupo, allowedSizes = null) 
   return totals;
 }
 
+function getPrefixGroupSubgroupSizeTotals(rows, grupo, subgrupo, prefix, allowedSizes = null) {
+  const totals = new Map();
+  const grupoKey = normalizeName(grupo).toUpperCase();
+  const subgrupoKey = normalizeName(subgrupo).toUpperCase();
+  const prefixKey = String(prefix || '');
+  const allowedSizeSet = allowedSizes
+    ? new Set(allowedSizes.map(size => normalizeName(size).toUpperCase()))
+    : null;
+
+  rows.forEach((row) => {
+    if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
+    if (subgrupoKey && normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
+
+    const ref = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (!ref.startsWith(prefixKey)) return;
+    if (allowedSizeSet && !allowedSizeSet.has(normalizeName(row.tamanho).toUpperCase())) return;
+
+    addSizeTotal(totals, row.tamanho, row.venda);
+  });
+
+  return totals;
+}
+
 function mapHistoricalSizesToNewSizes(newSizes, historicalSizeTotals) {
   const mapped = new Map(newSizes.map(size => [size, 0]));
   const sortedNewSizes = sortSizes(newSizes);
@@ -655,31 +824,36 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
         (sum, subgrupo) => sum + Number(histTotals.get(subgrupo) || 0),
         0
       );
+      const sourceReferenceStats = getHistoricalReferenceStats(rows, familiaHist, grupo, historicosSobra);
+      const refsNovasSobra = new Set(
+        skusFamilia
+          .filter(sku => normalizeName(sku.grupo).toUpperCase() === normalizeName(grupo).toUpperCase())
+          .filter(sku => novosSobra.includes(sku.subgrupo))
+          .map(sku => normalizeName(sku.referencia).toUpperCase())
+          .filter(ref => ref && ref !== 'SEM INFO')
+      );
+      const basePool = sourceReferenceStats.average > 0
+        ? Math.min(baseHistoricaRestante, sourceReferenceStats.average * Math.max(refsNovasSobra.size, 1))
+        : baseHistoricaRestante;
       const totalSkusSobra = novosSobra.reduce(
         (sum, subgrupo) => sum + Number(skuCounts.get(`${grupo}|${subgrupo}`) || 0),
-        0
-      );
-      const linhaSubgroupTotals = getLineSubgroupTotals(rows, linhaFamiliaNova, grupo, historicalFamilyLineMap);
-      const totalLinhaSobra = novosSobra.reduce(
-        (sum, subgrupo) => sum + Number(linhaSubgroupTotals.get(subgrupo) || 0),
         0
       );
 
       novosSobra.forEach((subgrupo) => {
         const skuCount = Number(skuCounts.get(`${grupo}|${subgrupo}`) || 0);
-        const participacaoLinha = totalLinhaSobra > 0
-          ? Number(linhaSubgroupTotals.get(subgrupo) || 0) / totalLinhaSobra
-          : 0;
         const participacaoSku = totalSkusSobra > 0 ? skuCount / totalSkusSobra : 1 / novosSobra.length;
-        const participacao = participacaoLinha || participacaoSku;
 
         mapping.set(`${grupo}|${subgrupo}`, {
           grupoHist: grupo,
           subgrupoHist: historicosSobra.join(' + '),
           histSubgrupos: historicosSobra,
-          matchTipo: participacaoLinha ? 'POOL_LINHA' : 'POOL_RESTANTE',
-          vendaBaseOverride: baseHistoricaRestante * participacao,
-          linhaBase: participacaoLinha ? linhaFamiliaNova : undefined
+          matchTipo: 'POOL_MEDIA_REFERENCIAS',
+          vendaBaseOverride: basePool * participacaoSku,
+          refsComparaveis: sourceReferenceStats.referenceCount,
+          fatorSku: sourceReferenceStats.referenceCount > 0
+            ? Math.min(1, Math.max(refsNovasSobra.size, 1) / sourceReferenceStats.referenceCount)
+            : 1
         });
       });
     }
@@ -707,16 +881,21 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
         subgrupo,
         historicalFamilyLineMap
       );
+      const skuCountNovo = Number(skuCounts.get(key) || 0);
 
       if (lineAverage.average > 0) {
+        const fatorSku = lineAverage.averageSkuCount > 0 && skuCountNovo > 0
+          ? Math.min(1, skuCountNovo / lineAverage.averageSkuCount)
+          : 1;
         mapping.set(key, {
           grupoHist: grupo,
           subgrupoHist: subgrupo,
           histSubgrupos: [subgrupo],
           matchTipo: 'FALLBACK_LINHA',
-          vendaBaseOverride: lineAverage.average,
+          vendaBaseOverride: lineAverage.average * fatorSku,
           linhaBase: linhaFamiliaNova,
-          refsComparaveis: lineAverage.referenceCount
+          refsComparaveis: lineAverage.referenceCount,
+          fatorSku
         });
         return;
       }
@@ -724,13 +903,17 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
       const groupAverage = getGroupSubgroupReferenceAverage(rows, grupo, subgrupo);
       if (groupAverage.average <= 0) return;
 
+      const fatorSku = groupAverage.averageSkuCount > 0 && skuCountNovo > 0
+        ? Math.min(1, skuCountNovo / groupAverage.averageSkuCount)
+        : 1;
       mapping.set(key, {
         grupoHist: grupo,
         subgrupoHist: subgrupo,
         histSubgrupos: [subgrupo],
         matchTipo: 'FALLBACK_GRUPO_SUBGRUPO',
-        vendaBaseOverride: groupAverage.average,
-        refsComparaveis: groupAverage.referenceCount
+        vendaBaseOverride: groupAverage.average * fatorSku,
+        refsComparaveis: groupAverage.referenceCount,
+        fatorSku
       });
     });
 
@@ -1289,8 +1472,8 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
           baseEspecial: vendaTotalFamilia,
           crescimento: CRESCIMENTO_PADRAO,
           obs: usaBase2026
-            ? 'Base 2026 + 10%, aberta por grupo/subgrupo/tamanho/loja'
-            : 'Base Inverno 26 jan-jun/2026 + 10%, aberta por grupo/subgrupo/tamanho/loja'
+            ? 'Base 2026 sem crescimento, aberta por grupo/subgrupo/tamanho/loja'
+            : 'Base Inverno 26 jan-jun/2026 sem crescimento, aberta por grupo/subgrupo/tamanho/loja'
         }
       : calcularPlanoFamilia(familiaNova, vendaTotalFamilia);
     const planoTotal = resultado.plano;
@@ -1444,7 +1627,10 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
       const skusPorGrupoSubgrupo = {};
 
       skusFamilia.forEach((sku) => {
-        const key = `${sku.grupo}|${sku.subgrupo}`;
+        const prefixoProduto = normalizeName(sku.referencia, '').toUpperCase().startsWith('70')
+          ? 'PREFIXO_70'
+          : 'NORMAL';
+        const key = `${sku.grupo}|${sku.subgrupo}|${prefixoProduto}`;
         if (!skusPorGrupoSubgrupo[key]) {
           skusPorGrupoSubgrupo[key] = [];
         }
@@ -1457,11 +1643,36 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
 
       Object.entries(skusPorGrupoSubgrupo).forEach(([key, skusGrupoSubgrupo]) => {
         const [grupo, subgrupo] = key.split('|');
-        const mapped = subgroupMapping.get(key) || {
+        const mappingKey = `${grupo}|${subgrupo}`;
+        let mapped = subgroupMapping.get(mappingKey) || {
           grupoHist: grupo,
           subgrupoHist: subgrupo,
           matchTipo: 'SEM_MATCH'
         };
+
+        const usaRegraPrefixo70 = skusGrupoSubgrupo.some((sku) => (
+          normalizeName(sku.referencia, '').toUpperCase().startsWith('70')
+        ));
+
+        if (usaRegraPrefixo70 && !usaCurvaEspecial) {
+          const mediaSubgrupo70 = getPrefixReferenceAverage(rowsBaseFamilia, grupo, subgrupo, '70');
+          const mediaGrupo70 = mediaSubgrupo70.average > 0
+            ? mediaSubgrupo70
+            : getPrefixReferenceAverage(rowsBaseFamilia, grupo, '', '70');
+
+          if (mediaGrupo70.average > 0) {
+            mapped = {
+              ...mapped,
+              grupoHist: grupo,
+              subgrupoHist: mediaSubgrupo70.average > 0 ? subgrupo : grupo,
+              histSubgrupos: mediaSubgrupo70.average > 0 ? [subgrupo] : [],
+              matchTipo: mediaSubgrupo70.average > 0 ? 'PREFIXO_70_SUBGRUPO' : 'PREFIXO_70_GRUPO',
+              vendaBaseOverride: mediaGrupo70.average,
+              refsComparaveis: mediaGrupo70.referenceCount
+            };
+          }
+        }
+
         const histKey = `${(usaBaseInverno26 || usaBase2026) ? familiaKey : familiaHist}|${mapped.grupoHist}|${mapped.subgrupoHist}`;
         const vendaBaseSubgrupo = mapped.vendaBaseOverride !== undefined
           ? Number(mapped.vendaBaseOverride || 0)
@@ -1476,7 +1687,23 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
         vendaBaseAlocadaSubgrupos += vendaBaseSubgrupo;
         const histSubgrupos = mapped.histSubgrupos || String(mapped.subgrupoHist || subgrupo).split(' + ');
         let primarySizeTotals;
-        if (mapped.matchTipo === 'FALLBACK_LINHA') {
+        if (mapped.matchTipo === 'PREFIXO_70_SUBGRUPO') {
+          primarySizeTotals = getPrefixGroupSubgroupSizeTotals(
+            rowsBaseFamilia,
+            grupo,
+            subgrupo,
+            '70',
+            skusGrupoSubgrupo.map(sku => sku.tamanho)
+          );
+        } else if (mapped.matchTipo === 'PREFIXO_70_GRUPO') {
+          primarySizeTotals = getPrefixGroupSubgroupSizeTotals(
+            rowsBaseFamilia,
+            grupo,
+            '',
+            '70',
+            skusGrupoSubgrupo.map(sku => sku.tamanho)
+          );
+        } else if (mapped.matchTipo === 'FALLBACK_LINHA') {
           primarySizeTotals = getLineSubgroupSizeTotals(rowsBaseFamilia, mapped.linhaBase || getLinha(familiaNova), grupo, subgrupo, historicalFamilyLineMap);
         } else if (mapped.matchTipo === 'FALLBACK_GRUPO_SUBGRUPO') {
           primarySizeTotals = getGroupSubgroupSizeTotals(
@@ -1560,7 +1787,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
           grupo: sku.grupo,
           subgrupo: sku.subgrupo,
           ref: sku.referencia,
-          cor: sku.cor,
+          cor: getDisplayColor(familiaNova, sku.cor),
           tam: sku.tamanho,
           codProduto: sku.codProduto,
           linha: sku.linha || getLinha(familiaNova),
@@ -1570,6 +1797,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
           plano: planoSku,
           temDepara: temDePara ? 'SIM' : 'NAO',
           temPercentual: resultado.regra !== 'padrao' ? 'SIM' : 'NAO',
+          regraAplicada: resultado.regra,
           familiaHist: familiaHist,
           grupoHist: matchSubgrupo.grupoHist || sku.grupo,
           subgrupoHist: matchSubgrupo.subgrupoHist || sku.subgrupo,
@@ -1578,6 +1806,8 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
       }
     }
   }
+
+  applySpecialFamilyColorTargets(planoRows);
 
   const planoPorLojaCalculado = buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaFallback);
   familiasDashboard.forEach((familia) => {

@@ -69,6 +69,20 @@ const aplicarArredondamentoRegra = (valor) => {
   return Math.floor(valor);
 };
 
+const descreverRegraBase = (item) => {
+  const regraFamilia = String(item.regraAplicada || 'padrao').toUpperCase();
+  const match = String(item.matchSubgrupo || 'SEM_MATCH').toUpperCase();
+
+  if (match.includes('PREFIXO_70')) return 'PLUS: prefixo 70';
+  if (match.includes('POOL_MEDIA_REFERENCIAS')) return 'Pool media refs';
+  if (match.includes('POOL')) return 'Pool/fallback';
+  if (match.includes('DEPARA')) return 'De-para subgrupo';
+  if (match.includes('BASE_ESPECIAL')) return 'Base especial';
+  if (match.includes('EXATO')) return regraFamilia !== 'PADRAO' ? `${regraFamilia} + match exato` : 'Match exato';
+  if (match.includes('SEM_MATCH')) return 'Sem match';
+  return match;
+};
+
 const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdicaoLimitadaData = [] }) => {
   const { lojas, familias: familiasOriginal } = data;
   const [expanded, setExpanded] = useState({});
@@ -282,6 +296,117 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
   const totalGeralSum2026 = isLojaFiltrada
     ? totalGeral.reduce((s, t) => s + t.total2026, 0)
     : familias.reduce((sum, familia) => sum + (planoSkuPorFamilia[familia.nome] || 0), 0);
+
+  const diagnosticoPercentuais = useMemo(() => {
+    const pct = (valor, base) => (base > 0 ? ((valor - base) / base) * 100 : 0);
+
+    return familias.map((familia) => {
+      const rowsFamilia = planoFiltradoMatriz.filter(item => item.familia === familia.nome);
+      const baseComparativo = lojasIndices.reduce((sum, lojaIdx) => sum + Number(familia.vendas2025[lojaIdx] || 0), 0);
+      const baseSku = rowsFamilia.reduce((sum, item) => sum + Number(item.vendaBase || 0), 0);
+      const planoSku = rowsFamilia.reduce((sum, item) => sum + Number(item.planoOriginal ?? item.plano ?? 0), 0);
+      const planoFinal = isLojaFiltrada
+        ? rowsFamilia.reduce(
+          (sum, item) => sum + lojasFiltradas.reduce(
+            (storeSum, loja) => storeSum + Number(item.planoDistribuidoLojas?.[loja] || 0),
+            0
+          ),
+          0
+        )
+        : rowsFamilia.reduce((sum, item) => sum + Number(item.plano || 0), 0);
+      const diferencaBase = baseSku - baseComparativo;
+      const impactoLoja = planoFinal - planoSku;
+      const tiposMatch = rowsFamilia.reduce((acc, item) => {
+        const tipo = item.matchSubgrupo || 'SEM INFO';
+        acc[tipo] = (acc[tipo] || 0) + 1;
+        return acc;
+      }, {});
+      const principalMatch = Object.entries(tiposMatch)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+      const refResumo = Object.values(rowsFamilia.reduce((acc, item) => {
+        const ref = item.ref || 'SEM REF';
+        if (!acc[ref]) {
+          acc[ref] = {
+            ref,
+            grupo: item.grupo || '-',
+            subgrupo: item.subgrupo || '-',
+            match: item.matchSubgrupo || '-',
+            base: 0,
+            sku: 0,
+            final: 0,
+            lojasComUm: 0
+          };
+        }
+
+        const finalSku = Number(item.plano || 0);
+        const skuOriginal = Number(item.planoOriginal ?? item.plano ?? 0);
+        acc[ref].base += Number(item.vendaBase || 0);
+        acc[ref].sku += skuOriginal;
+        acc[ref].final += finalSku;
+        acc[ref].lojasComUm += lojasFiltradas.filter(loja => Number(item.planoDistribuidoLojas?.[loja] || 0) === 1).length;
+        return acc;
+      }, {}));
+      const topRefsImpacto = refResumo
+        .map(ref => ({ ...ref, impacto: ref.final - ref.sku }))
+        .sort((a, b) => Math.abs(b.impacto) - Math.abs(a.impacto))
+        .slice(0, 3);
+      const lojasComUm = rowsFamilia.reduce(
+        (sum, item) => sum + lojasFiltradas.filter(loja => Number(item.planoDistribuidoLojas?.[loja] || 0) === 1).length,
+        0
+      );
+      const corResumo = Object.values(rowsFamilia.reduce((acc, item) => {
+        const cor = item.cor || 'SEM COR';
+        if (!acc[cor]) acc[cor] = { cor, plano: 0 };
+        acc[cor].plano += Number(item.plano || 0);
+        return acc;
+      }, {})).sort((a, b) => b.plano - a.plano);
+      const regrasBase = Object.entries(rowsFamilia.reduce((acc, item) => {
+        const regra = descreverRegraBase(item);
+        const impactoSku = Math.abs(Number(item.planoOriginal ?? item.plano ?? 0) - Number(item.vendaBase || 0));
+        acc[regra] = (acc[regra] || 0) + Math.max(impactoSku, 1);
+        return acc;
+      }, {})).sort((a, b) => b[1] - a[1]);
+
+      let motivo = 'Dentro da base';
+      if (Math.abs(diferencaBase) > Math.max(10, baseComparativo * 0.02)) {
+        motivo = diferencaBase > 0 ? 'Base/fallback acima' : 'Base/fallback abaixo';
+      } else if (impactoLoja > Math.max(10, planoSku * 0.02)) {
+        motivo = 'Loja/minimos';
+      } else if (impactoLoja < -Math.max(10, planoSku * 0.02)) {
+        motivo = 'Ajuste loja abaixo';
+      }
+
+      const pctSku = pct(planoSku, baseComparativo);
+      const pctFinal = pct(planoFinal, baseComparativo);
+      const pctNaturalSku = pct(planoSku, baseSku);
+      let regraPrincipal = regrasBase[0]?.[0] || principalMatch;
+      if (impactoLoja > Math.max(10, planoSku * 0.02) && lojasComUm > 0) {
+        regraPrincipal = `Minimo/arred. loja (${fmt(lojasComUm)} cel. = 1)`;
+      } else if (Math.abs(diferencaBase) > Math.max(10, baseComparativo * 0.02)) {
+        regraPrincipal = `Base: ${regraPrincipal}`;
+      }
+
+      return {
+        familia: familia.nome,
+        baseComparativo,
+        baseSku,
+        diferencaBase,
+        planoSku,
+        planoFinal,
+        impactoLoja,
+        pctSku,
+        pctFinal,
+        impactoBasePp: pctSku - pctNaturalSku,
+        impactoLojaPp: pctFinal - pctSku,
+        motivo,
+        principalMatch,
+        regraPrincipal,
+        lojasComUm,
+        topRefsImpacto,
+        corResumo
+      };
+    }).sort((a, b) => Math.abs(b.pctFinal) - Math.abs(a.pctFinal));
+  }, [familias, planoFiltradoMatriz, lojasIndices, lojasFiltradas, isLojaFiltrada]);
 
   // Abrir modal de memória de cálculo
   const openModal = (familia, lojaIdx, e) => {
@@ -688,6 +813,104 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
       </div>
 
       {/* Rodapé/Legenda */}
+      <div className="border-t border-gray-200 bg-white">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h4 className="text-xs font-bold uppercase tracking-wide text-gray-700">Diagnostico do aumento</h4>
+          <p className="text-[10px] text-gray-500 mt-0.5">
+            Decompoe o percentual entre base construida, plano SKU e plano final por loja.
+          </p>
+        </div>
+        <div className="overflow-auto max-h-[360px]">
+          <table className="min-w-full text-xs">
+            <thead className="sticky top-0 bg-gray-50 z-10">
+              <tr className="border-b border-gray-200">
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase text-gray-500">Familia</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Base comp.</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Base SKU</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Delta base</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Plano SKU</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">% SKU</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Plano final</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">% final</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Impacto loja</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">PP loja</th>
+                <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase text-gray-500">Cel. 1</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase text-gray-500">Refs que puxam</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase text-gray-500">Mix cor</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase text-gray-500">Regra principal</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase text-gray-500">Motivo</th>
+                <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase text-gray-500">Match principal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {diagnosticoPercentuais.map((row, idx) => {
+                const topCores = row.corResumo.slice(0, 4);
+                return (
+                  <tr key={row.familia} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/70'}>
+                    <td className="px-3 py-2 font-semibold text-gray-800">{getFamiliaDisplayName(row.familia)}</td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-gray-700">{fmt(row.baseComparativo)}</td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-gray-700">{fmt(row.baseSku, 1)}</td>
+                    <td className={`px-2 py-2 text-right font-mono tabular-nums ${row.diferencaBase >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {row.diferencaBase > 0 ? '+' : ''}{fmt(row.diferencaBase, 1)}
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-gray-700">{fmt(row.planoSku)}</td>
+                    <td className={`px-2 py-2 text-right font-mono tabular-nums ${row.pctSku >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {row.pctSku > 0 ? '+' : ''}{row.pctSku.toFixed(1)}%
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums font-semibold text-gray-900">{fmt(row.planoFinal)}</td>
+                    <td className={`px-2 py-2 text-right font-mono tabular-nums font-semibold ${row.pctFinal >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {row.pctFinal > 0 ? '+' : ''}{row.pctFinal.toFixed(1)}%
+                    </td>
+                    <td className={`px-2 py-2 text-right font-mono tabular-nums ${row.impactoLoja >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {row.impactoLoja > 0 ? '+' : ''}{fmt(row.impactoLoja)}
+                    </td>
+                    <td className={`px-2 py-2 text-right font-mono tabular-nums ${row.impactoLojaPp >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {row.impactoLojaPp > 0 ? '+' : ''}{row.impactoLojaPp.toFixed(1)}pp
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono tabular-nums text-gray-700">{fmt(row.lojasComUm)}</td>
+                    <td className="px-3 py-2 min-w-[180px]">
+                      <div className="space-y-0.5">
+                        {row.topRefsImpacto.map(ref => (
+                          <div key={ref.ref} className="text-[10px] text-gray-700">
+                            <span className="font-mono font-semibold text-gray-900">{ref.ref}</span>
+                            <span className={`ml-1 font-mono ${ref.impacto >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                              {ref.impacto > 0 ? '+' : ''}{fmt(ref.impacto)}
+                            </span>
+                            <span className="ml-1 text-gray-400">{ref.grupo}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 min-w-[180px]">
+                      <div className="space-y-0.5">
+                        {topCores.map(cor => {
+                          const pctCor = row.planoFinal > 0 ? (cor.plano / row.planoFinal) * 100 : 0;
+                          return (
+                            <div key={cor.cor} className="text-[10px] text-gray-700">
+                              <span className="font-semibold text-gray-900">{cor.cor}</span>
+                              <span className="ml-1 font-mono text-gray-500">{fmt(cor.plano)} / {pctCor.toFixed(0)}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 min-w-[160px] text-[10px] font-semibold text-gray-800">
+                      {row.regraPrincipal}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="inline-flex rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                        {row.motivo}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-[10px] text-gray-500">{row.principalMatch}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-[10px] text-gray-500 flex flex-wrap items-center gap-4">
         <span className="font-semibold text-gray-600">Legenda:</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-white border border-gray-300 rounded-sm"></span> Família</span>

@@ -60,8 +60,8 @@ export const REGRAS_ESPECIAIS = {
   'LACE': {
     tipo: 'base_especial',
     base: 909,
-    crescimento: 0.10,
-    obs: 'Base NUDE 2o sem 2025 (909) + 10%'
+    crescimento: 0,
+    obs: 'Base NUDE 2o sem 2025 (909), sem crescimento'
   },
   'CONFORT VANILLA': {
     tipo: 'fixo',
@@ -71,25 +71,25 @@ export const REGRAS_ESPECIAIS = {
   'NOIVAS': {
     tipo: 'base_especial',
     base: 1706,  // Venda 1o sem 2026 (atualizado)
-    crescimento: 0.10,
-    obs: 'Base do 1o semestre 2026 + 10%'
+    crescimento: 0,
+    obs: 'Base do 1o semestre 2026, sem crescimento'
   },
   'LOVE APPEAL': {
     tipo: 'base_especial',
     base: 2776,  // Venda 1o sem 2026 (atualizado)
-    crescimento: 0.10,
-    obs: 'Base do 1o semestre 2026 + 10%'
+    crescimento: 0,
+    obs: 'Base do 1o semestre 2026, sem crescimento'
   },
   'RENDAS': {
     tipo: 'base_especial',
     base: 1158,
-    crescimento: 0.10,
-    obs: 'Venda 2o sem 2025 (1158) + 10%'
+    crescimento: 0,
+    obs: 'Venda 2o sem 2025 (1158), sem crescimento'
   }
 };
 
 // Crescimento padrao
-export const CRESCIMENTO_PADRAO = 0.10; // +10%
+export const CRESCIMENTO_PADRAO = 0; // sem crescimento
 
 // Calcula o plano para uma familia
 export function calcularPlanoFamilia(familia, vendaBase) {
@@ -97,7 +97,7 @@ export function calcularPlanoFamilia(familia, vendaBase) {
   const regra = REGRAS_ESPECIAIS[familiaUpper];
 
   if (!regra) {
-    // Regra padrao: +10%
+    // Regra padrao: manter base sem crescimento
     return {
       plano: Math.round(vendaBase * (1 + CRESCIMENTO_PADRAO)),
       regra: 'padrao',
