@@ -435,13 +435,28 @@ function rowMatchesLine(row, linhaKey, historicalFamilyLineMap) {
   return rowLinha === linhaKey;
 }
 
+function getFallbackLineKeys(linha) {
+  const linhaKey = normalizeName(linha).toUpperCase();
+  if (linhaKey.includes('+')) {
+    return linhaKey.split('+').map(value => normalizeName(value).toUpperCase()).filter(Boolean);
+  }
+  if (linhaKey === 'LUXE' || linhaKey === 'FASHION') {
+    return ['LUXE', 'FASHION'];
+  }
+  return [linhaKey];
+}
+
+function rowMatchesAnyLine(row, lineKeys, historicalFamilyLineMap) {
+  return lineKeys.some(linhaKey => rowMatchesLine(row, linhaKey, historicalFamilyLineMap));
+}
+
 function getLineSubgroupTotals(rows, linha, grupo, historicalFamilyLineMap) {
   const totals = new Map();
-  const linhaKey = normalizeName(linha).toUpperCase();
+  const linhaKeys = getFallbackLineKeys(linha);
   const grupoKey = normalizeName(grupo).toUpperCase();
 
   rows.forEach((row) => {
-    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    if (!rowMatchesAnyLine(row, linhaKeys, historicalFamilyLineMap)) return;
 
     const rowGrupo = normalizeName(row.grupo).toUpperCase();
     if (rowGrupo !== grupoKey) return;
@@ -454,14 +469,14 @@ function getLineSubgroupTotals(rows, linha, grupo, historicalFamilyLineMap) {
 }
 
 function getLineGroupSubgroupReferenceAverage(rows, linha, grupo, subgrupo, historicalFamilyLineMap) {
-  const linhaKey = normalizeName(linha).toUpperCase();
+  const linhaKeys = getFallbackLineKeys(linha);
   const grupoKey = normalizeName(grupo).toUpperCase();
   const subgrupoKey = normalizeName(subgrupo).toUpperCase();
   const totalsByRef = new Map();
   const skuKeysByRef = new Map();
 
   rows.forEach((row) => {
-    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    if (!rowMatchesAnyLine(row, linhaKeys, historicalFamilyLineMap)) return;
     if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
     if (normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
 
@@ -695,10 +710,10 @@ function getReferenceAverageColorSizeTotals(rows, familiaHist, referencia) {
 
 function getLineSizeTotals(rows, linha, historicalFamilyLineMap) {
   const totals = new Map();
-  const linhaKey = normalizeName(linha).toUpperCase();
+  const linhaKeys = getFallbackLineKeys(linha);
 
   rows.forEach((row) => {
-    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    if (!rowMatchesAnyLine(row, linhaKeys, historicalFamilyLineMap)) return;
     addSizeTotal(totals, row.tamanho, row.venda);
   });
 
@@ -707,12 +722,12 @@ function getLineSizeTotals(rows, linha, historicalFamilyLineMap) {
 
 function getLineSubgroupSizeTotals(rows, linha, grupo, subgrupo, historicalFamilyLineMap) {
   const totals = new Map();
-  const linhaKey = normalizeName(linha).toUpperCase();
+  const linhaKeys = getFallbackLineKeys(linha);
   const grupoKey = normalizeName(grupo).toUpperCase();
   const subgrupoKey = normalizeName(subgrupo).toUpperCase();
 
   rows.forEach((row) => {
-    if (!rowMatchesLine(row, linhaKey, historicalFamilyLineMap)) return;
+    if (!rowMatchesAnyLine(row, linhaKeys, historicalFamilyLineMap)) return;
     if (normalizeName(row.grupo).toUpperCase() !== grupoKey) return;
     if (normalizeName(row.subgrupo).toUpperCase() !== subgrupoKey) return;
 
@@ -797,6 +812,16 @@ function mapHistoricalSizesToNewSizes(newSizes, historicalSizeTotals) {
     if (!targetSize) return;
     mapped.set(targetSize, (mapped.get(targetSize) || 0) + Number(historicalSizeTotals.get(historicalSize) || 0));
   });
+
+  const mappedTotal = [...mapped.values()].reduce((sum, value) => sum + Number(value || 0), 0);
+  const hasMixedSizeTypes = sortedNewSizes.some(isNumericSize) !== sortedHistoricalSizes.some(isNumericSize);
+  if (mappedTotal <= 0 && hasMixedSizeTypes) {
+    sortedHistoricalSizes.forEach((historicalSize, index) => {
+      const targetSize = sortedNewSizes[Math.min(index, sortedNewSizes.length - 1)];
+      if (!targetSize) return;
+      mapped.set(targetSize, (mapped.get(targetSize) || 0) + Number(historicalSizeTotals.get(historicalSize) || 0));
+    });
+  }
 
   return mapped;
 }
@@ -987,6 +1012,7 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
         historicalFamilyLineMap
       );
       const skuCountNovo = Number(skuCounts.get(key) || 0);
+      const linhaBaseFallback = getFallbackLineKeys(linhaFamiliaNova).join('+');
 
       if (lineAverage.average > 0) {
         const fatorSku = lineAverage.averageSkuCount > 0 && skuCountNovo > 0
@@ -998,7 +1024,7 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
           histSubgrupos: [subgrupo],
           matchTipo: 'FALLBACK_LINHA',
           vendaBaseOverride: lineAverage.average * fatorSku,
-          linhaBase: linhaFamiliaNova,
+          linhaBase: linhaBaseFallback,
           refsComparaveis: lineAverage.referenceCount,
           fatorSku
         });

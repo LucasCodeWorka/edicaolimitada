@@ -120,12 +120,77 @@ const DEPARA_FAMILIAS = {
   'AFTER SUN': 'SICILIA'
 };
 
+const FAMILIA_LINHA_MAP = {
+  'AFTER SUN': 'FASHION',
+  'AQUALUME': 'LUXE',
+  'BLOOM': 'FASHION',
+  'CETIM': 'LOUNGEWEAR',
+  'CONFORT VANILLA': 'CONFORT',
+  'FLOR DO OCEANO': 'LUXE',
+  'KISS ME': 'FASHION',
+  'KISS ME PLUS': 'FASHION',
+  'LACE': 'LOUNGEWEAR',
+  'LOVE APPEAL': 'LUXE',
+  'LOVELY': 'FASHION',
+  'NOIVAS': 'LUXE',
+  'PORTELLE': 'LUXE',
+  'VISCOW': 'LOUNGEWEAR',
+  'WISHES': 'FASHION',
+  'BASICOS': 'CONFORT',
+  'BREEZE': 'SOFT',
+  'RENDAS': 'LOUNGEWEAR'
+};
+
 const getFamiliaHistorica = (familia) => {
   const key = String(familia || '').toUpperCase().trim();
   return DEPARA_FAMILIAS[key] || key;
 };
 
+const getLinhaFamilia = (familia) => FAMILIA_LINHA_MAP[normalizeKey(familia)] || 'SEM LINHA';
+
+const buildHistoricalFamilyLineMap = () => {
+  const map = new Map();
+
+  Object.entries(DEPARA_FAMILIAS).forEach(([familiaNova, familiaHist]) => {
+    const linha = getLinhaFamilia(familiaNova);
+    if (!linha || linha === 'SEM LINHA') return;
+
+    const histKey = normalizeKey(familiaHist);
+    if (!map.has(histKey)) map.set(histKey, new Set());
+    map.get(histKey).add(linha);
+  });
+
+  return map;
+};
+
+const rowMatchesLine = (familia, linha, historicalFamilyLineMap) => {
+  const familiaKey = normalizeKey(familia);
+  const linhaKey = normalizeKey(linha);
+  const mappedLines = historicalFamilyLineMap.get(familiaKey);
+
+  if (mappedLines && mappedLines.size > 0) {
+    return mappedLines.has(linhaKey);
+  }
+
+  return getLinhaFamilia(familiaKey) === linhaKey;
+};
+
 const normalizeKey = (value, fallback = '') => String(value || fallback).toUpperCase().trim();
+
+const getFallbackLineKeys = (linha) => {
+  const linhaKey = normalizeKey(linha);
+  if (linhaKey.includes('+')) {
+    return linhaKey.split('+').map(value => normalizeKey(value)).filter(Boolean);
+  }
+  if (linhaKey === 'LUXE' || linhaKey === 'FASHION') {
+    return ['LUXE', 'FASHION'];
+  }
+  return [linhaKey];
+};
+
+const rowMatchesAnyLine = (familia, lineKeys, historicalFamilyLineMap) => (
+  lineKeys.some(linhaKey => rowMatchesLine(familia, linhaKey, historicalFamilyLineMap))
+);
 
 const isLojaJoquei = (loja) => {
   const lojaKey = normalizeKey(loja);
@@ -196,6 +261,7 @@ const stripInternalExportColumns = (rows, lojasVisiveis = null) => {
 };
 
 const roundBusinessValue = (valor) => {
+  if (valor <= 0) return 0;
   if (valor < 1) return 1;
   if (valor < 1.5) return 1;
   if (valor < 2) return 2;
@@ -468,6 +534,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
   Object.keys(vendasGeralPorLoja).forEach(loja => {
     participacaoGeral[loja] = totalGeral > 0 ? vendasGeralPorLoja[loja] / totalGeral : 0;
   });
+  const historicalFamilyLineMap = buildHistoricalFamilyLineMap();
 
   // Função para buscar vendas por familia+grupo+subgrupo
   const buscarVendasGranulares = (familiaHist, grupo, subgrupo, debug = false) => {
@@ -519,6 +586,28 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
       return { vendas, total };
     }
 
+    return null;
+  };
+
+  const buscarVendasLinhaGranulares = (linha, grupo, subgrupo) => {
+    if (!vendasPorFamiliaGrupoSubgrupoLoja) return null;
+
+    const linhaKeys = getFallbackLineKeys(linha);
+    const grupoKey = normalizeKey(grupo);
+    const subgrupoKey = normalizeKey(subgrupo);
+    let vendas = {};
+    let total = 0;
+
+    Object.entries(vendasPorFamiliaGrupoSubgrupoLoja).forEach(([key, venda]) => {
+      const [fam, grp, sub, loja] = key.split('|');
+      if (!rowMatchesAnyLine(fam, linhaKeys, historicalFamilyLineMap)) return;
+      if (grp !== grupoKey || sub !== subgrupoKey) return;
+
+      vendas[loja] = (vendas[loja] || 0) + Number(venda || 0);
+      total += Number(venda || 0);
+    });
+
+    if (total > 0) return { vendas, total };
     return null;
   };
 
@@ -596,7 +685,23 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
       }
     }
 
-    // 3. Fallback final: vendas gerais
+    // 3. Fallback por linha+grupo+subgrupo
+    if (!participacaoBase && grupo && grupo !== 'SEM INFO' && grupo !== '-') {
+      const linha = getLinhaFamilia(familiaKey);
+      const linhaFonte = getFallbackLineKeys(linha).join('+');
+      const vendasLinhaGranulares = buscarVendasLinhaGranulares(linha, grupo, subgrupo);
+      if (vendasLinhaGranulares && vendasLinhaGranulares.total > 0) {
+        vendasBase = vendasLinhaGranulares.vendas;
+        participacaoBase = {};
+        lojasPCP.forEach(loja => {
+          participacaoBase[loja] = (vendasBase[loja] || 0) / vendasLinhaGranulares.total;
+        });
+        fonteParticipacao = `${linhaFonte}|${grupo}|${subgrupo}`;
+        skusComGranular++;
+      }
+    }
+
+    // 4. Fallback final: vendas gerais
     if (!participacaoBase) {
       vendasBase = vendasGeralPorLoja;
       participacaoBase = participacaoGeral;
