@@ -57,10 +57,32 @@ const groupRowsBy = (rows, key, fallback = 'OUTROS') => {
     .sort((a, b) => b.valor - a.valor);
 };
 
-const groupHistoricalLineFromPlan = (planRows, totalHistoricalValue) => {
+const getStoreFilteredVendaBase = (item, selectedStores = []) => {
+  const vendaBase = Number(item.vendaBase || 0);
+  if (!selectedStores.length) return vendaBase;
+
+  const distribuicao = item.planoDistribuidoLojas || {};
+  const planoLojasSelecionadas = selectedStores.reduce(
+    (sum, loja) => sum + Number(distribuicao[loja] || 0),
+    0
+  );
+  if (planoLojasSelecionadas <= 0) return 0;
+
+  const planoDistribuidoTotal = Object.values(distribuicao)
+    .reduce((sum, valor) => sum + Number(valor || 0), 0);
+  const planoBase = planoDistribuidoTotal > 0 ? planoDistribuidoTotal : Number(item.plano || 0);
+
+  return planoBase > 0 ? vendaBase * (planoLojasSelecionadas / planoBase) : 0;
+};
+
+const groupHistoricalLineFromPlan = (planRows, totalHistoricalValue, selectedStores = []) => {
   const byLine = planRows.reduce((acc, item) => {
     const line = normalizeText(item.linha || FAMILIA_LINHA_MAP[item.familia], 'OUTROS');
-    acc[line] = (acc[line] || 0) + Number(item.vendaBase || item.plano || 0);
+    const base = getStoreFilteredVendaBase(item, selectedStores);
+    const planoFallback = selectedStores.length
+      ? selectedStores.reduce((sum, loja) => sum + Number(item.planoDistribuidoLojas?.[loja] || 0), 0)
+      : Number(item.plano || 0);
+    acc[line] = (acc[line] || 0) + (base || planoFallback);
     return acc;
   }, {});
 
@@ -301,7 +323,10 @@ function App() {
       };
     }
 
-    const vendaBaseFiltrada = dadosFiltrados.reduce((sum, item) => sum + Number(item.vendaBase || 0), 0);
+    const vendaBaseFiltrada = dadosFiltrados.reduce(
+      (sum, item) => sum + getStoreFilteredVendaBase(item, selectedStores),
+      0
+    );
     let venda2025 = vendaBaseFiltrada;
 
     if (selectedStores.length > 0 && historicoVendasData.length > 0) {
@@ -439,7 +464,7 @@ function App() {
         grupo: groupRowsBy(historico, 'grupo', 'SEM INFO'),
         subgrupo: groupRowsBy(historico, 'subgrupo', 'SEM INFO'),
         familia: groupRowsBy(historico, 'familia', 'OUTROS'),
-        linha: groupHistoricalLineFromPlan(dadosFiltrados, totalHistorico),
+        linha: groupHistoricalLineFromPlan(dadosFiltrados, totalHistorico, getSelectedValues(filters.empresa)),
         ref: groupRowsBy(historico, 'ref', 'OUTROS')
       };
     }
@@ -447,7 +472,7 @@ function App() {
     const fallbackRows = dadosFiltrados.map(item => ({
       ...item,
       familia: item.familiaHist || item.familia,
-      valor: Number(item.vendaBase || 0)
+      valor: getStoreFilteredVendaBase(item, getSelectedValues(filters.empresa))
     }));
 
     return {
