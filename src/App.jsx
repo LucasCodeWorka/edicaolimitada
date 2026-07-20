@@ -226,6 +226,19 @@ function App() {
       };
     });
 
+    const baseVisualPorFamiliaLoja = {};
+    planoFinal.forEach(item => {
+      const familia = normalizeText(item.familia, 'OUTROS');
+      if (!baseVisualPorFamiliaLoja[familia]) {
+        baseVisualPorFamiliaLoja[familia] = {};
+      }
+      lojas.forEach(loja => {
+        baseVisualPorFamiliaLoja[familia][loja] = (
+          baseVisualPorFamiliaLoja[familia][loja] || 0
+        ) + getStoreFilteredVendaBase(item, [loja]);
+      });
+    });
+
     const planoPorFamiliaLoja = {};
     pcpRows.forEach(row => {
       const familia = normalizeText(row['FamÃ­lia'] || row['Família'], 'OUTROS');
@@ -241,6 +254,10 @@ function App() {
       ...comparativoBase,
       familias: (comparativoBase.familias || []).map(familia => ({
         ...familia,
+        vendas2025Original: familia.vendas2025,
+        vendas2025: lojas.map((loja, lojaIdx) => (
+          baseVisualPorFamiliaLoja[normalizeText(familia.nome)]?.[loja] ?? familia.vendas2025[lojaIdx] ?? 0
+        )),
         plano2026Original: familia.plano2026,
         plano2026: lojas.map(loja => planoPorFamiliaLoja[normalizeText(familia.nome)]?.[loja] || 0)
       }))
