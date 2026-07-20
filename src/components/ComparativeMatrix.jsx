@@ -54,6 +54,25 @@ const addLojaTotals = (target, source = {}) => {
   });
 };
 
+const getSkuBaseLoja = (item, loja) => {
+  const vendaBase = Number(item.vendaBase || 0);
+  const distribuicao = item.planoDistribuidoLojas || {};
+  const planoLoja = Number(distribuicao[loja] || 0);
+
+  if (vendaBase <= 0 || planoLoja <= 0) return 0;
+
+  const planoTotal = Object.values(distribuicao)
+    .reduce((sum, valor) => sum + Number(valor || 0), 0);
+  const planoBase = planoTotal > 0 ? planoTotal : Number(item.plano || 0);
+
+  return planoBase > 0 ? vendaBase * (planoLoja / planoBase) : 0;
+};
+
+const getSkuBaseLojas = (item, lojasSelecionadas = []) => {
+  if (!lojasSelecionadas.length) return Number(item.vendaBase || 0);
+  return lojasSelecionadas.reduce((sum, loja) => sum + getSkuBaseLoja(item, loja), 0);
+};
+
 const getFamiliaDisplayName = (familia) => {
   if (familia === 'CONFORT VANILLA') {
     return 'BASICOS';
@@ -161,6 +180,17 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     }, {});
   }, [planoFiltradoMatriz]);
 
+  const baseLojaPorFamilia = useMemo(() => {
+    return planoFiltradoMatriz.reduce((acc, item) => {
+      const familia = item.familia || 'OUTROS';
+      if (!acc[familia]) acc[familia] = {};
+      lojas.forEach(loja => {
+        acc[familia][loja] = (acc[familia][loja] || 0) + getSkuBaseLoja(item, loja);
+      });
+      return acc;
+    }, {});
+  }, [planoFiltradoMatriz, lojas]);
+
   // Usar valores originais do JSON (sem redução - plano definido pelo Cairo)
   const familiasComPlano = useMemo(
     () => familiasFiltradas
@@ -170,6 +200,10 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
 
   const familias = familiasComPlano.map(familia => ({
     ...familia,
+    vendas2025Original: familia.vendas2025,
+    vendas2025: lojas.map((loja, lojaIdx) => (
+      baseLojaPorFamilia[familia.nome]?.[loja] ?? familia.vendas2025[lojaIdx] ?? 0
+    )),
     plano2026Original: familia.plano2026,
     plano2026: lojas.map(loja => planoLojaPorFamilia[familia.nome]?.[loja] ?? familia.plano2026[lojas.indexOf(loja)] ?? 0)
   }));
@@ -303,7 +337,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     return familias.map((familia) => {
       const rowsFamilia = planoFiltradoMatriz.filter(item => item.familia === familia.nome);
       const baseComparativo = lojasIndices.reduce((sum, lojaIdx) => sum + Number(familia.vendas2025[lojaIdx] || 0), 0);
-      const baseSku = rowsFamilia.reduce((sum, item) => sum + Number(item.vendaBase || 0), 0);
+      const baseSku = rowsFamilia.reduce((sum, item) => sum + getSkuBaseLojas(item, lojasFiltradas), 0);
       const planoSku = rowsFamilia.reduce((sum, item) => sum + Number(item.planoOriginal ?? item.plano ?? 0), 0);
       const planoFinal = isLojaFiltrada
         ? rowsFamilia.reduce(
@@ -340,7 +374,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
 
         const finalSku = Number(item.plano || 0);
         const skuOriginal = Number(item.planoOriginal ?? item.plano ?? 0);
-        acc[ref].base += Number(item.vendaBase || 0);
+        acc[ref].base += getSkuBaseLojas(item, lojasFiltradas);
         acc[ref].sku += skuOriginal;
         acc[ref].final += finalSku;
         acc[ref].lojasComUm += lojasFiltradas.filter(loja => Number(item.planoDistribuidoLojas?.[loja] || 0) === 1).length;
@@ -431,10 +465,12 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
         cor: item.cor,
         tam: item.tam,
         grupo: item.grupo,
-        plano: item.plano
+        base: getSkuBaseLoja(item, loja),
+        plano: Number(item.planoDistribuidoLojas?.[loja] || 0)
       }));
 
     const totalPlanoDetalhado = skusDetalhados.reduce((sum, s) => sum + s.plano, 0);
+    const totalBaseDetalhada = skusDetalhados.reduce((sum, s) => sum + s.base, 0);
 
     setModalData({
       familia: familia.nome,
@@ -446,6 +482,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
       diferenca,
       foiAjustado,
       skusDetalhados,
+      totalBaseDetalhada,
       totalPlanoDetalhado
     });
   };
@@ -1027,6 +1064,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                         <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-gray-600">Cor</th>
                         <th className="px-3 py-1.5 text-center text-[10px] font-semibold text-gray-600">Tam</th>
                         <th className="px-3 py-1.5 text-center text-[10px] font-semibold text-gray-600">Grupo</th>
+                        <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-gray-600">Base</th>
                         <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-gray-600">Plano</th>
                       </tr>
                     </thead>
@@ -1039,6 +1077,7 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                             <span className="bg-gray-200 px-1.5 py-0.5 rounded text-gray-700">{sku.tam}</span>
                           </td>
                           <td className="px-3 py-1.5 text-[10px] text-center text-gray-500">{sku.grupo}</td>
+                          <td className="px-3 py-1.5 text-[10px] text-right font-mono tabular-nums text-gray-600">{fmt(sku.base, 1)}</td>
                           <td className="px-3 py-1.5 text-[10px] text-right font-mono tabular-nums font-semibold text-gray-800">{fmt(sku.plano)}</td>
                         </tr>
                       ))}
@@ -1047,6 +1086,9 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
                       <tr>
                         <td colSpan="4" className="px-3 py-2 text-xs font-bold text-gray-700">
                           Total ({modalData.skusDetalhados.length} SKUs)
+                        </td>
+                        <td className="px-3 py-2 text-xs text-right font-mono tabular-nums font-bold text-gray-700">
+                          {fmt(modalData.totalBaseDetalhada, 1)}
                         </td>
                         <td className="px-3 py-2 text-xs text-right font-mono tabular-nums font-bold text-gray-800">
                           {fmt(modalData.totalPlanoDetalhado)}
