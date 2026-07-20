@@ -179,8 +179,40 @@ function applySpecialFamilyColorTargets(planoRows) {
 function getLargeSizeSet(grupo) {
   const grupoKey = normalizeName(grupo).toUpperCase();
   if (grupoKey.includes('SUTIA')) return new Set(['48', '50']);
-  if (grupoKey.includes('CALCA')) return new Set(['GG', 'XG']);
+  if (grupoKey.includes('CALCA')) return new Set(['GG', 'EG', 'XG']);
   return new Set();
+}
+
+function isLargeOnlyHistoricalSubgroup(rows, familiaHist, grupo, subgrupo) {
+  const largeSizes = getLargeSizeSet(grupo);
+  if (largeSizes.size === 0) return false;
+
+  const sizeTotals = getFamilySubgroupSizeTotals(rows, familiaHist, grupo, [subgrupo]);
+  const positiveSizes = [...sizeTotals.entries()]
+    .filter(([, total]) => Number(total || 0) > 0)
+    .map(([size]) => normalizeName(size).toUpperCase());
+
+  return positiveSizes.length > 0 && positiveSizes.every(size => largeSizes.has(size));
+}
+
+function targetHasRegularSizes(skus, grupo) {
+  const largeSizes = getLargeSizeSet(grupo);
+  if (largeSizes.size === 0) return false;
+
+  return skus.some(sku => {
+    const size = normalizeName(sku.tamanho).toUpperCase();
+    return size && !largeSizes.has(size);
+  });
+}
+
+function canUseResidualSubgroupMapping(rows, familiaHist, grupo, novoSubgrupo, historicoSubgrupo, skusFamilia) {
+  const skusNovoSubgrupo = skusFamilia.filter(sku => (
+    normalizeName(sku.grupo).toUpperCase() === normalizeName(grupo).toUpperCase() &&
+    normalizeName(sku.subgrupo).toUpperCase() === normalizeName(novoSubgrupo).toUpperCase()
+  ));
+
+  if (!targetHasRegularSizes(skusNovoSubgrupo, grupo)) return true;
+  return !isLargeOnlyHistoricalSubgroup(rows, familiaHist, grupo, historicoSubgrupo);
 }
 
 function rebalanceRegularReferenceLargeSizes(planoRows) {
@@ -939,7 +971,11 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
     const novosSobra = [...novosSubgrupos].filter(subgrupo => !matchedNovos.has(subgrupo));
     const historicosSobra = [...historicosSubgrupos].filter(subgrupo => !matchedHistoricos.has(subgrupo));
 
-    if (novosSobra.length === 1 && historicosSobra.length === 1) {
+    if (
+      novosSobra.length === 1 &&
+      historicosSobra.length === 1 &&
+      canUseResidualSubgroupMapping(rows, familiaHist, grupo, novosSobra[0], historicosSobra[0], skusFamilia)
+    ) {
       mapping.set(`${grupo}|${novosSobra[0]}`, {
         grupoHist: grupo,
         subgrupoHist: historicosSobra[0],
@@ -949,12 +985,18 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
       return;
     }
 
-    if (novosSobra.length > 0 && historicosSobra.length > 0) {
-      const baseHistoricaRestante = historicosSobra.reduce(
+    const historicosSobraCompativeis = historicosSobra.filter(historicoSubgrupo => (
+      novosSobra.some(novoSubgrupo => (
+        canUseResidualSubgroupMapping(rows, familiaHist, grupo, novoSubgrupo, historicoSubgrupo, skusFamilia)
+      ))
+    ));
+
+    if (novosSobra.length > 0 && historicosSobraCompativeis.length > 0) {
+      const baseHistoricaRestante = historicosSobraCompativeis.reduce(
         (sum, subgrupo) => sum + Number(histTotals.get(subgrupo) || 0),
         0
       );
-      const sourceReferenceStats = getHistoricalReferenceStats(rows, familiaHist, grupo, historicosSobra);
+      const sourceReferenceStats = getHistoricalReferenceStats(rows, familiaHist, grupo, historicosSobraCompativeis);
       const refsNovasSobra = new Set(
         skusFamilia
           .filter(sku => normalizeName(sku.grupo).toUpperCase() === normalizeName(grupo).toUpperCase())
@@ -976,8 +1018,8 @@ function buildSubgroupMapping(skusFamilia, vendasPorFamiliaGrupoSubgrupo, famili
 
         mapping.set(`${grupo}|${subgrupo}`, {
           grupoHist: grupo,
-          subgrupoHist: historicosSobra.join(' + '),
-          histSubgrupos: historicosSobra,
+          subgrupoHist: historicosSobraCompativeis.join(' + '),
+          histSubgrupos: historicosSobraCompativeis,
           matchTipo: 'POOL_MEDIA_REFERENCIAS',
           vendaBaseOverride: basePool * participacaoSku,
           refsComparaveis: sourceReferenceStats.referenceCount,

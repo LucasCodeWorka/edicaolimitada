@@ -363,7 +363,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
   const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'JOKEY', 'ECOMMERCE'];
   const TAMANHOS_MAIORES_MINIMOS = {
     SUTIA: new Set(['48', '50']),
-    CALCA: new Set(['GG', 'XG'])
+    CALCA: new Set(['GG', 'EG', 'XG'])
   };
   const LOJAS_PEQUENAS_PORTELLE = [
     'DOM LUIS',
