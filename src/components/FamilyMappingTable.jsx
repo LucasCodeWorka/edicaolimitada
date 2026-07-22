@@ -55,6 +55,14 @@ const FamilyMappingTable = ({ data, filters = {}, familiaLinhaMap = {} }) => {
     return { total2025, total2026 };
   }, [familiasFiltradas, lojasIndices]);
 
+  const familiasOrdenadas = useMemo(() => (
+    [...familiasFiltradas].sort((a, b) => {
+      const totalA = lojasIndices.reduce((s, i) => s + (a.plano2026[i] || 0), 0);
+      const totalB = lojasIndices.reduce((s, i) => s + (b.plano2026[i] || 0), 0);
+      return totalB - totalA || String(a.familiaAtual).localeCompare(String(b.familiaAtual));
+    })
+  ), [familiasFiltradas, lojasIndices]);
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
       {/* Header */}
@@ -111,7 +119,7 @@ const FamilyMappingTable = ({ data, filters = {}, familiaLinhaMap = {} }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {familiasFiltradas.map((familia, idx) => {
+            {familiasOrdenadas.map((familia, idx) => {
               const total2025 = lojasIndices.reduce((s, i) => s + (familia.vendas2025[i] || 0), 0);
               const total2026 = lojasIndices.reduce((s, i) => s + (familia.plano2026[i] || 0), 0);
               const isContinuidade = familia.familiaAtual === familia.familiaAnterior;

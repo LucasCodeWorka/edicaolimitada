@@ -6,7 +6,7 @@ import { hasFilterValue, matchesFilterValue } from '../utils/filterUtils';
  * Mostra memória de cálculo completa: Família, REF, Cor, Tam, Venda Base 2025, Plano 2026
  */
 const AuditTable = ({ data = [], filters = {} }) => {
-  const [sortConfig, setSortConfig] = useState({ key: 'familia', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'plano', direction: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [detailFocus, setDetailFocus] = useState('base');

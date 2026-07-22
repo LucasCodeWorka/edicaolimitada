@@ -121,6 +121,8 @@ const PlanAnalysis = ({ data = [], historicoVendasData = [], filters = {} }) => 
       });
     });
 
+    zeroCells.sort((a, b) => b.plano - a.plano || String(a.familia).localeCompare(String(b.familia)) || String(a.ref).localeCompare(String(b.ref)));
+
     const byReason = [...groupBy(zeroCells, row => row.motivo)]
       .map(([motivo, rows]) => ({ motivo, qtd: rows.length }))
       .sort((a, b) => b.qtd - a.qtd);
@@ -150,7 +152,7 @@ const PlanAnalysis = ({ data = [], historicoVendasData = [], filters = {} }) => 
 
     const concentratedRefs = refRows
       .filter(row => row.total > 0 && row.share >= minConcentration)
-      .sort((a, b) => b.share - a.share || b.total - a.total);
+      .sort((a, b) => b.total - a.total || b.valorLider - a.valorLider);
 
     const sizeRows = [];
     groupBy(filteredData, item => `${item.familia}|${item.ref}`).forEach((rows, key) => {
@@ -201,7 +203,7 @@ const PlanAnalysis = ({ data = [], historicoVendasData = [], filters = {} }) => 
 
     const sizeAlerts = sizeRows
       .filter(row => row.mismatch || Math.abs(row.maxDelta) >= 0.15)
-      .sort((a, b) => Math.abs(b.maxDelta) - Math.abs(a.maxDelta));
+      .sort((a, b) => b.totalPlan - a.totalPlan || Math.abs(b.maxDelta) - Math.abs(a.maxDelta));
 
     return {
       totalPlano,

@@ -54,6 +54,10 @@ const addLojaTotals = (target, source = {}) => {
   });
 };
 
+const sortEntriesByTotalDesc = (entries, getTotal) => (
+  entries.sort((a, b) => Number(getTotal(b) || 0) - Number(getTotal(a) || 0) || String(a[0]).localeCompare(String(b[0])))
+);
+
 const getSkuBaseLoja = (item, loja) => {
   const vendaBase = Number(item.vendaBase || 0);
   const distribuicao = item.planoDistribuidoLojas || {};
@@ -198,15 +202,21 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
     [familiasFiltradas, planoSkuPorFamilia]
   );
 
-  const familias = familiasComPlano.map(familia => ({
-    ...familia,
-    vendas2025Original: familia.vendas2025,
-    vendas2025: lojas.map((loja, lojaIdx) => (
-      baseLojaPorFamilia[familia.nome]?.[loja] ?? familia.vendas2025[lojaIdx] ?? 0
-    )),
-    plano2026Original: familia.plano2026,
-    plano2026: lojas.map(loja => planoLojaPorFamilia[familia.nome]?.[loja] ?? familia.plano2026[lojas.indexOf(loja)] ?? 0)
-  }));
+  const familias = familiasComPlano
+    .map(familia => ({
+      ...familia,
+      vendas2025Original: familia.vendas2025,
+      vendas2025: lojas.map((loja, lojaIdx) => (
+        baseLojaPorFamilia[familia.nome]?.[loja] ?? familia.vendas2025[lojaIdx] ?? 0
+      )),
+      plano2026Original: familia.plano2026,
+      plano2026: lojas.map(loja => planoLojaPorFamilia[familia.nome]?.[loja] ?? familia.plano2026[lojas.indexOf(loja)] ?? 0)
+    }))
+    .sort((a, b) => {
+      const totalA = lojasIndices.reduce((s, idx) => s + Number(a.plano2026[idx] || 0), 0);
+      const totalB = lojasIndices.reduce((s, idx) => s + Number(b.plano2026[idx] || 0), 0);
+      return totalB - totalA || String(a.nome).localeCompare(String(b.nome));
+    });
 
   // Esta matriz compara o plano contra a base propria de cada familia/loja.
   // Familias com venda historica, mas sem plano 2026, ficam fora desta comparacao.
@@ -292,7 +302,28 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
       addLojaTotals(refs[sku.ref].cores[sku.cor].lojas, lojasSku);
     });
 
-    return refs;
+    return Object.fromEntries(sortEntriesByTotalDesc(
+      Object.entries(refs).map(([refName, refData]) => [
+        refName,
+        {
+          ...refData,
+          cores: Object.fromEntries(sortEntriesByTotalDesc(
+            Object.entries(refData.cores).map(([corName, corData]) => [
+              corName,
+              {
+                ...corData,
+                tamanhos: Object.fromEntries(sortEntriesByTotalDesc(
+                  Object.entries(corData.tamanhos),
+                  ([, tamData]) => tamData.total
+                ))
+              }
+            ]),
+            ([, corData]) => corData.total
+          ))
+        }
+      ]),
+      ([, refData]) => refData.total
+    ));
   };
 
   // Gerar todas as chaves de expansão
@@ -467,7 +498,8 @@ const ComparativeMatrix = ({ data, filters = {}, familiaLinhaMap = {}, planoEdic
         grupo: item.grupo,
         base: getSkuBaseLoja(item, loja),
         plano: Number(item.planoDistribuidoLojas?.[loja] || 0)
-      }));
+      }))
+      .sort((a, b) => b.plano - a.plano || String(a.ref).localeCompare(String(b.ref)));
 
     const totalPlanoDetalhado = skusDetalhados.reduce((sum, s) => sum + s.plano, 0);
     const totalBaseDetalhada = skusDetalhados.reduce((sum, s) => sum + s.base, 0);
