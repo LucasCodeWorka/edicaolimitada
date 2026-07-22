@@ -365,6 +365,8 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     SUTIA: new Set(['48', '50']),
     CALCA: new Set(['GG', 'EG', 'XG'])
   };
+  const MINIMO_REF_603583_LOJAS = new Set(['BARRA', 'MORUMBI', 'RIO MAR', 'RIO MAR RECIFE']);
+  const MINIMO_REF_603583_TAMANHOS = new Set(['42', '44']);
   const LOJAS_PEQUENAS_PORTELLE = [
     'DOM LUIS',
     'ECOMMERCE',
@@ -425,6 +427,12 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
 
   const lojaSemPortelle = (loja) => {
     return String(loja || '').toUpperCase().trim() === 'TABOSA';
+  };
+
+  const deveAplicarMinimoRef603583 = (sku, loja) => {
+    return normalizeKey(sku.ref || sku.referencia) === '603583'
+      && MINIMO_REF_603583_TAMANHOS.has(normalizeKey(sku.tam || sku.tamanho))
+      && MINIMO_REF_603583_LOJAS.has(normalizeKey(loja));
   };
 
   // Usar lojas exatamente como vêm da API
@@ -793,6 +801,10 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
         !isLojaJoquei(loja);
 
       if ((deveAplicarMinimoPermanente || deveAplicarMinimoEdicaoLimitada) && distribuicao[loja] < 1) {
+        distribuicao[loja] = 1;
+      }
+
+      if (deveAplicarMinimoRef603583(sku, loja) && distribuicao[loja] < 1) {
         distribuicao[loja] = 1;
       }
 
