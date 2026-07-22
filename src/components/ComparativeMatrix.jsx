@@ -6,6 +6,7 @@ import { hasFilterValue, matchesFilterValue } from '../utils/filterUtils';
 // Lojas excluídas para famílias de tamanhos maiores (PLUS)
 const LOJAS_EXCLUIDAS_TAM_MAIOR = ['DOM LUIS', 'NORTH JOQUEI', 'JOKEY', 'ECOMMERCE'];
 const LOJAS_PEQUENAS_PORTELLE = [
+  'BARRA',
   'DOM LUIS',
   'ECOMMERCE',
   'INTIMATES',
@@ -13,7 +14,10 @@ const LOJAS_PEQUENAS_PORTELLE = [
   'NORTH',
   'NORTH JOQUEI',
   'PARANGABA',
+  'RIO MAR',
+  'RIO MAR RECIFE',
   'RIOMAR KENNEDY',
+  'SALVADOR',
   'TABOSA'
 ];
 
