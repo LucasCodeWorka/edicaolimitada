@@ -19,28 +19,13 @@ const getStores = (data = []) => {
 const isJoquei = (loja) => normalize(loja).includes('JOQUEI') || normalize(loja).includes('JOKEY');
 const isExcludedPlusStore = (loja) => ['DOM LUIS', 'ECOMMERCE'].includes(normalize(loja)) || isJoquei(loja);
 const isPlusFamily = (familia) => normalize(familia).includes('PLUS');
-const LOJAS_PEQUENAS_PORTELLE = [
-  'BARRA',
-  'DOM LUIS',
-  'ECOMMERCE',
-  'INTIMATES',
-  'MORUMBI',
-  'NORTH',
-  'NORTH JOQUEI',
-  'PARANGABA',
-  'RIO MAR',
-  'RIO MAR RECIFE',
-  'RIOMAR KENNEDY',
-  'SALVADOR',
-  'TABOSA'
-];
 
 const getTargetSizeType = (item) => {
   const grupo = normalize(item.grupo);
   const tam = normalize(item.tam);
 
   if (grupo.includes('SUTIA') && ['48', '50'].includes(tam)) return 'tam_maior_sutia';
-  if (grupo.includes('CALCA') && ['GG', 'EG', 'XG'].includes(tam)) return 'tam_maior_calca';
+  if (grupo.includes('CALCA') && ['GG', 'XG'].includes(tam)) return 'tam_maior_calca';
   if (normalize(item.familia) === 'LOVE APPEAL' && grupo.includes('SUTIA') && ['42', '44'].includes(tam)) return 'love_appeal';
   if (normalize(item.familia) === 'LOVE APPEAL' && grupo.includes('CALCA') && ['M', 'G'].includes(tam)) return 'love_appeal';
 
@@ -59,7 +44,7 @@ const getZeroReason = (item, loja, value) => {
   if (isPlusFamily(familia) && isExcludedPlusStore(loja)) return 'Loja bloqueada para tamanhos maiores';
   if (familia === 'KISS ME' && targetType && normalize(loja) !== 'MARAPONGA') return 'Excecao KISS ME tamanho maior: somente Maraponga';
   if (familia === 'PORTELLE' && normalize(loja) === 'TABOSA') return 'PORTELLE nao envia para Tabosa';
-  if (familia === 'PORTELLE' && cor !== 'PRETO' && LOJAS_PEQUENAS_PORTELLE.includes(normalize(loja))) {
+  if (familia === 'PORTELLE' && cor !== 'PRETO' && ['DOM LUIS', 'ECOMMERCE', 'INTIMATES', 'MORUMBI', 'NORTH', 'NORTH JOQUEI', 'PARANGABA', 'RIOMAR KENNEDY', 'TABOSA'].includes(normalize(loja))) {
     return 'PORTELLE loja pequena recebe somente PRETO';
   }
   if (Number(item.vendaBase || 0) <= 0) return 'Sem base historica para este SKU';

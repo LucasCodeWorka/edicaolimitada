@@ -177,54 +177,6 @@ const rowMatchesLine = (familia, linha, historicalFamilyLineMap) => {
 
 const normalizeKey = (value, fallback = '') => String(value || fallback).toUpperCase().trim();
 
-const LETTER_SIZE_ORDER = ['PP', 'P', 'M', 'G', 'GG', 'EG', 'XG', 'XGG', 'XXG', 'EXG'];
-
-const sizeRank = (size) => {
-  const value = normalizeKey(size);
-  const numeric = Number(value.replace(',', '.'));
-  if (Number.isFinite(numeric)) return numeric;
-
-  const index = LETTER_SIZE_ORDER.indexOf(value);
-  return index >= 0 ? 1000 + index : 2000;
-};
-
-const isNumericSize = (size) => {
-  const numeric = Number(normalizeKey(size).replace(',', '.'));
-  return Number.isFinite(numeric);
-};
-
-const sortSizes = (sizes) => [...sizes].sort((a, b) => {
-  const rankDiff = sizeRank(a) - sizeRank(b);
-  return rankDiff || String(a).localeCompare(String(b));
-});
-
-const mapTopSizesToReferenceGrade = (topSizes, refSkus = [], sourceGradeSizes = topSizes) => {
-  const sourceSizes = sortSizes([...new Set(topSizes.map(size => normalizeKey(size)).filter(Boolean))]);
-  const sourceGrade = sortSizes([...new Set(sourceGradeSizes.map(size => normalizeKey(size)).filter(Boolean))]);
-  const targetSizes = sortSizes([...new Set(refSkus.map(sku => normalizeKey(sku.tam || sku.tamanho)).filter(Boolean))]);
-
-  if (!sourceSizes.length || !targetSizes.length) return sourceSizes;
-
-  const targetSet = new Set(targetSizes);
-  if (sourceSizes.every(size => targetSet.has(size))) return sourceSizes;
-
-  const mixedSizeTypes = targetSizes.some(isNumericSize) !== sourceSizes.some(isNumericSize);
-  if (!mixedSizeTypes) {
-    return sourceSizes
-      .map(size => targetSizes
-        .map(target => ({ target, distance: Math.abs(sizeRank(target) - sizeRank(size)) }))
-        .sort((a, b) => a.distance - b.distance || sizeRank(a.target) - sizeRank(b.target))[0]?.target)
-      .filter(Boolean);
-  }
-
-  return sourceSizes
-    .map(size => {
-      const sourceIndex = Math.max(sourceGrade.indexOf(size), 0);
-      return targetSizes[Math.min(sourceIndex, targetSizes.length - 1)];
-    })
-    .filter(Boolean);
-};
-
 const getFallbackLineKeys = (linha) => {
   const linhaKey = normalizeKey(linha);
   if (linhaKey.includes('+')) {
@@ -244,8 +196,6 @@ const isLojaJoquei = (loja) => {
   const lojaKey = normalizeKey(loja);
   return lojaKey.includes('JOQUEI');
 };
-
-const isLojaMaraponga = (loja) => normalizeKey(loja) === 'MARAPONGA';
 
 const isContinuidadadePermanente = (continuidade) => {
   const key = normalizeKey(continuidade);
@@ -362,13 +312,7 @@ const getTopSizesForReference = (refSkus, historicoVendasData = []) => {
   const refKey = normalizeKey(first.ref);
   const ownRows = historicoVendasData.filter(row => normalizeKey(row.ref) === refKey);
   const ownTopSizes = getTopSizesFromRows(ownRows);
-  if (ownTopSizes.length > 0) {
-    return mapTopSizesToReferenceGrade(
-      ownTopSizes,
-      refSkus,
-      ownRows.map(row => row.tam || row.tamanho)
-    );
-  }
+  if (ownTopSizes.length > 0) return ownTopSizes;
 
   const familiaHist = normalizeKey(first.familiaHist || getFamiliaHistorica(first.familia));
   const grupoHist = normalizeKey(first.grupoHist || first.grupo);
@@ -381,11 +325,7 @@ const getTopSizesForReference = (refSkus, historicoVendasData = []) => {
     histSubgrupos.has(normalizeKey(row.subgrupo))
   ));
 
-  return mapTopSizesToReferenceGrade(
-    getTopSizesFromRows(sourceRows),
-    refSkus,
-    sourceRows.map(row => row.tam || row.tamanho)
-  );
+  return getTopSizesFromRows(sourceRows);
 };
 
 /**
@@ -426,7 +366,6 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     CALCA: new Set(['GG', 'EG', 'XG'])
   };
   const LOJAS_PEQUENAS_PORTELLE = [
-    'BARRA',
     'DOM LUIS',
     'ECOMMERCE',
     'INTIMATES',
@@ -434,10 +373,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     'NORTH',
     'NORTH JOQUEI',
     'PARANGABA',
-    'RIO MAR',
-    'RIO MAR RECIFE',
     'RIOMAR KENNEDY',
-    'SALVADOR',
     'TABOSA'
   ];
 
@@ -855,19 +791,8 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
         isContinuidadadeEdicaoLimitada(sku.continuidade) &&
         vendaLojaFonte <= 0 &&
         !isLojaJoquei(loja);
-      const deveAplicarGradeMinimaMaraponga =
-        isLojaMaraponga(loja) &&
-        isContinuidadadeEdicaoLimitada(sku.continuidade) &&
-        vendaLojaFonte <= 0 &&
-        Number(sku.vendaBase || 0) > 0 &&
-        fonteParticipacao !== 'GERAL' &&
-        !ehPortelle(sku);
 
       if ((deveAplicarMinimoPermanente || deveAplicarMinimoEdicaoLimitada) && distribuicao[loja] < 1) {
-        distribuicao[loja] = 1;
-      }
-
-      if (deveAplicarGradeMinimaMaraponga && distribuicao[loja] < 1) {
         distribuicao[loja] = 1;
       }
 
