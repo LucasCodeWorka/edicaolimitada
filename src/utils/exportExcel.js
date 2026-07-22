@@ -141,12 +141,25 @@ const FAMILIA_LINHA_MAP = {
   'RENDAS': 'LOUNGEWEAR'
 };
 
+const SPECIAL_REFERENCE_SOURCE_OVERRIDES = {
+  'FLOR DO OCEANO|603483': {
+    familiaHist: 'DELICATTI',
+    refHist: '503439',
+    fonte: 'DELICATTI|REF|503439'
+  }
+};
+
 const getFamiliaHistorica = (familia) => {
   const key = String(familia || '').toUpperCase().trim();
   return DEPARA_FAMILIAS[key] || key;
 };
 
 const getLinhaFamilia = (familia) => FAMILIA_LINHA_MAP[normalizeKey(familia)] || 'SEM LINHA';
+
+const getSpecialReferenceSourceOverride = (sku = {}) => {
+  const key = `${normalizeKey(sku.familia)}|${normalizeKey(sku.ref || sku.referencia)}`;
+  return SPECIAL_REFERENCE_SOURCE_OVERRIDES[key] || null;
+};
 
 const buildHistoricalFamilyLineMap = () => {
   const map = new Map();
@@ -309,6 +322,14 @@ const getTopSizesFromRows = (rows) => {
 
 const getTopSizesForReference = (refSkus, historicoVendasData = []) => {
   const first = refSkus[0] || {};
+  const sourceOverride = getSpecialReferenceSourceOverride(first);
+  if (sourceOverride) {
+    return getTopSizesFromRows(historicoVendasData.filter(row => (
+      normalizeKey(row.familia) === normalizeKey(sourceOverride.familiaHist) &&
+      normalizeKey(row.ref) === normalizeKey(sourceOverride.refHist)
+    )));
+  }
+
   const refKey = normalizeKey(first.ref);
   const ownRows = historicoVendasData.filter(row => normalizeKey(row.ref) === refKey);
   const ownTopSizes = getTopSizesFromRows(ownRows);
@@ -619,6 +640,26 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     return null;
   };
 
+  const buscarVendasReferencia = (familiaHist, referencia) => {
+    const familiaKey = normalizeKey(familiaHist);
+    const refKey = normalizeKey(referencia);
+    let vendas = {};
+    let total = 0;
+
+    historicoVendasData.forEach((row) => {
+      if (normalizeKey(row.familia) !== familiaKey) return;
+      if (normalizeKey(row.ref) !== refKey) return;
+
+      const loja = normalizeKey(row.empresa);
+      const venda = Number(row.valor || row.venda || 0);
+      vendas[loja] = (vendas[loja] || 0) + venda;
+      total += venda;
+    });
+
+    if (total > 0) return { vendas, total };
+    return null;
+  };
+
   // Filtrar apenas VERAO 27
   const skusVerao27 = planoData.filter(item => item.colecao === 'VERAO 27');
   const skusPorReferencia = skusVerao27.reduce((acc, sku) => {
@@ -648,6 +689,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     const grupo = String(sku.grupo || '').toUpperCase().trim();
     const subgrupo = String(sku.subgrupo || '').toUpperCase().trim();
     const planoOriginalSku = Number(sku.planoOriginal ?? sku.plano ?? 0);
+    const sourceOverride = getSpecialReferenceSourceOverride(sku);
 
     const row = {
       'Família': sku.familia,
@@ -668,8 +710,21 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     let participacaoBase = null;
     let fonteParticipacao = '';
 
+    if (sourceOverride) {
+      const vendasReferencia = buscarVendasReferencia(sourceOverride.familiaHist, sourceOverride.refHist);
+      if (vendasReferencia && vendasReferencia.total > 0) {
+        vendasBase = vendasReferencia.vendas;
+        participacaoBase = {};
+        lojasPCP.forEach(loja => {
+          participacaoBase[loja] = (vendasBase[loja] || 0) / vendasReferencia.total;
+        });
+        fonteParticipacao = sourceOverride.fonte;
+        skusComGranular++;
+      }
+    }
+
     // 1. Tentar vendas granulares (familia histórica + grupo + subgrupo)
-    if (grupo && grupo !== 'SEM INFO' && grupo !== '-') {
+    if (!participacaoBase && grupo && grupo !== 'SEM INFO' && grupo !== '-') {
       const vendasGranulares = buscarVendasGranulares(familiaHist, grupo, subgrupo);
       if (vendasGranulares && vendasGranulares.total > 0) {
         vendasBase = vendasGranulares.vendas;
@@ -795,6 +850,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
         isContinuidadadePermanente(sku.continuidade) &&
         !isLojaJoquei(loja);
       const deveAplicarMinimoEdicaoLimitada =
+        !sourceOverride &&
         skuEntreTopSizes &&
         isContinuidadadeEdicaoLimitada(sku.continuidade) &&
         vendaLojaFonte <= 0 &&

@@ -54,6 +54,19 @@ const SPECIAL_FAMILY_COLOR_TARGETS = {
   }
 };
 
+const SPECIAL_REFERENCE_SOURCE_OVERRIDES = {
+  'FLOR DO OCEANO|603483': {
+    familiaHist: 'DELICATTI',
+    refHist: '503439',
+    matchTipo: 'REF_HISTORICA_503439'
+  }
+};
+
+function getSpecialReferenceSourceOverride(familiaNova, sku) {
+  const key = `${normalizeName(familiaNova).toUpperCase()}|${normalizeName(sku?.referencia).toUpperCase()}`;
+  return SPECIAL_REFERENCE_SOURCE_OVERRIDES[key] || null;
+}
+
 function getDisplayColor(familia, cor) {
   const familiaKey = normalizeName(familia).toUpperCase();
   const corKey = normalizeName(cor).toUpperCase();
@@ -706,6 +719,18 @@ function getReferenceSizeTotals(rows, familiaHist, referencia) {
   });
 
   return totals;
+}
+
+function getReferenceTotal(rows, familiaHist, referencia) {
+  const familiaKey = normalizeName(familiaHist).toUpperCase();
+  const refKey = normalizeName(referencia).toUpperCase();
+
+  return rows.reduce((sum, row) => {
+    const rowRef = normalizeName(row.referencia, row.idproduto).toUpperCase();
+    if (normalizeName(row.familia).toUpperCase() !== familiaKey) return sum;
+    if (rowRef !== refKey) return sum;
+    return sum + Number(row.venda || 0);
+  }, 0);
 }
 
 function getReferenceAverageColorSizeTotals(rows, familiaHist, referencia) {
@@ -1803,7 +1828,9 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
         const prefixoProduto = normalizeName(sku.referencia, '').toUpperCase().startsWith('70')
           ? 'PREFIXO_70'
           : 'NORMAL';
-        const key = `${sku.grupo}|${sku.subgrupo}|${prefixoProduto}`;
+        const sourceOverride = getSpecialReferenceSourceOverride(familiaNova, sku);
+        const refSourceKey = sourceOverride ? `|REF_${normalizeName(sku.referencia).toUpperCase()}` : '';
+        const key = `${sku.grupo}|${sku.subgrupo}|${prefixoProduto}${refSourceKey}`;
         if (!skusPorGrupoSubgrupo[key]) {
           skusPorGrupoSubgrupo[key] = [];
         }
@@ -1822,12 +1849,30 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
           subgrupoHist: subgrupo,
           matchTipo: 'SEM_MATCH'
         };
+        const sourceOverride = skusGrupoSubgrupo
+          .map(sku => getSpecialReferenceSourceOverride(familiaNova, sku))
+          .find(Boolean);
+
+        if (sourceOverride) {
+          const refTotal = getReferenceTotal(rowsBaseFamilia, sourceOverride.familiaHist, sourceOverride.refHist);
+          if (refTotal > 0) {
+            mapped = {
+              ...mapped,
+              grupoHist: grupo,
+              subgrupoHist: subgrupo,
+              histSubgrupos: [subgrupo],
+              matchTipo: sourceOverride.matchTipo,
+              refHist: sourceOverride.refHist,
+              vendaBaseOverride: refTotal
+            };
+          }
+        }
 
         const usaRegraPrefixo70 = skusGrupoSubgrupo.some((sku) => (
           normalizeName(sku.referencia, '').toUpperCase().startsWith('70')
         ));
 
-        if (usaRegraPrefixo70 && !usaCurvaEspecial) {
+        if (!sourceOverride && usaRegraPrefixo70 && !usaCurvaEspecial) {
           const mediaSubgrupo70 = getPrefixReferenceAverage(rowsBaseFamilia, grupo, subgrupo, '70');
           const mediaGrupo70 = mediaSubgrupo70.average > 0
             ? mediaSubgrupo70
@@ -1885,6 +1930,8 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
             subgrupo,
             skusGrupoSubgrupo.map(sku => sku.tamanho)
           );
+        } else if (mapped.refHist) {
+          primarySizeTotals = getReferenceSizeTotals(rowsBaseFamilia, sourceOverride?.familiaHist || familiaHist, mapped.refHist);
         } else {
           primarySizeTotals = getFamilySubgroupSizeTotals(rowsBaseFamilia, usaCurvaEspecial ? familiaKey : familiaHist, mapped.grupoHist || grupo, histSubgrupos);
         }
@@ -1974,6 +2021,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
           familiaHist: familiaHist,
           grupoHist: matchSubgrupo.grupoHist || sku.grupo,
           subgrupoHist: matchSubgrupo.subgrupoHist || sku.subgrupo,
+          refHist: matchSubgrupo.refHist || '',
           matchSubgrupo: matchSubgrupo.matchTipo || 'SEM_MATCH'
         });
       }
