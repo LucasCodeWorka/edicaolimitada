@@ -329,51 +329,77 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
 
   if (currentTotal <= 0 || currentTotal === targetTotal) return;
 
-  if (targetTotal < positiveRows.length) {
-    console.warn(`[dashboardBuilder] ${familyKey}: target ${targetTotal} < ${positiveRows.length} SKUs, vai zerar alguns`);
-  }
-
+  // Calcular valores proporcionais
   const projected = positiveRows.map((row) => {
-    const raw = targetTotal * (Number(row.plano || 0) / currentTotal);
+    const planoAtual = Number(row.plano || 0);
+    const raw = targetTotal * (planoAtual / currentTotal);
     return {
       row,
       raw,
-      base: Math.floor(raw),  // Removido Math.max(1, ...) para permitir zerar SKUs
+      planoOriginal: planoAtual,
+      base: Math.max(1, Math.floor(raw)),
       frac: raw - Math.floor(raw)
     };
   });
+
+  // Ordenar por plano original (maior para menor) para manter hierarquia
+  projected.sort((a, b) => b.planoOriginal - a.planoOriginal);
 
   let sum = projected.reduce((acc, item) => acc + item.base, 0);
   let diff = targetTotal - sum;
 
   if (diff > 0) {
-    projected
-      .slice()
-      .sort((a, b) => b.frac - a.frac || Number(b.row.plano || 0) - Number(a.row.plano || 0))
-      .forEach((item) => {
-        if (diff <= 0) return;
-        item.base += 1;
-        diff -= 1;
-      });
+    // Precisa adicionar - adiciona aos maiores primeiro
+    for (const item of projected) {
+      if (diff <= 0) break;
+      item.base += 1;
+      diff -= 1;
+    }
   } else if (diff < 0) {
-    projected
-      .slice()
-      .sort((a, b) => Number(b.base) - Number(a.base) || Number(b.row.plano || 0) - Number(a.row.plano || 0))
-      .forEach((item) => {
-        if (diff >= 0) return;
-        if (item.base <= 1) return;
-        item.base -= 1;
-        diff += 1;
-      });
+    // Precisa reduzir - reduz dos maiores primeiro, mas mantendo ordem
+    // Itera enquanto precisar reduzir
+    while (diff < 0) {
+      let reduziu = false;
+      for (const item of projected) {
+        if (diff >= 0) break;
+        // So reduz se base > 1 e se nao vai ficar menor que o proximo
+        const idx = projected.indexOf(item);
+        const proximo = projected[idx + 1];
+        const minimoParaManter = proximo ? proximo.base : 1;
+
+        if (item.base > minimoParaManter) {
+          item.base -= 1;
+          diff += 1;
+          reduziu = true;
+        }
+      }
+      // Se nao conseguiu reduzir ninguem, para o loop
+      if (!reduziu) break;
+    }
   }
 
+  // Ajuste final se ainda houver diferenca
   const finalDiff = targetTotal - projected.reduce((acc, item) => acc + item.base, 0);
-  if (finalDiff !== 0) {
-    const ajuste = projected
-      .slice()
-      .sort((a, b) => Number(b.base) - Number(a.base) || Number(b.raw) - Number(a.raw))[0];
-    if (ajuste) ajuste.base += finalDiff;
+  if (finalDiff > 0) {
+    // Adiciona ao maior
+    projected[0].base += finalDiff;
+  } else if (finalDiff < 0) {
+    // Tenta reduzir do maior que pode
+    for (const item of projected) {
+      if (finalDiff >= 0) break;
+      const idx = projected.indexOf(item);
+      const proximo = projected[idx + 1];
+      const minimoParaManter = proximo ? proximo.base : 1;
+      const podeReduzir = item.base - minimoParaManter;
+      if (podeReduzir > 0) {
+        const reduzir = Math.min(podeReduzir, Math.abs(finalDiff));
+        item.base -= reduzir;
+      }
+    }
   }
+
+  console.log(`[rebalanceFamilyToTarget] ${familyKey}: ajustado de ${currentTotal} para ${projected.reduce((s, i) => s + i.base, 0)} (target: ${targetTotal})`);
+
 
   projected.forEach(({ row, base }) => {
     row.planoOriginal = row.planoOriginal ?? row.plano;
