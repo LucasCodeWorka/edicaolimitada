@@ -330,8 +330,7 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
   if (currentTotal <= 0 || currentTotal === targetTotal) return;
 
   if (targetTotal < positiveRows.length) {
-    console.warn(`[dashboardBuilder] Nao foi possivel rebalancear ${familyKey} para ${targetTotal} sem zerar SKUs.`);
-    return;
+    console.warn(`[dashboardBuilder] ${familyKey}: target ${targetTotal} < ${positiveRows.length} SKUs, vai zerar alguns`);
   }
 
   const projected = positiveRows.map((row) => {
@@ -339,7 +338,7 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
     return {
       row,
       raw,
-      base: Math.max(1, Math.floor(raw)),
+      base: Math.floor(raw),  // Removido Math.max(1, ...) para permitir zerar SKUs
       frac: raw - Math.floor(raw)
     };
   });
