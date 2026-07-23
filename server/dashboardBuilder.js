@@ -317,6 +317,8 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
   const familyRows = planoRows.filter(row => normalizeName(row.familia).toUpperCase() === familyKey);
   const positiveRows = familyRows.filter(row => Number(row.plano || 0) > 0);
 
+  console.log(`[rebalanceFamilyToTarget] ${familyKey}: total rows=${familyRows.length}, positive=${positiveRows.length}`);
+
   if (positiveRows.length === 0) {
     console.log(`[rebalanceFamilyToTarget] ${familyKey}: nenhum SKU com plano > 0`);
     return;
@@ -379,6 +381,9 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
     row.plano = base;
     row.regraAjuste = `FAMILY_TARGET_${targetTotal}`;
   });
+
+  const finalTotal = projected.reduce((sum, item) => sum + item.base, 0);
+  console.log(`[rebalanceFamilyToTarget] ${familyKey}: FINALIZADO total=${finalTotal} (target=${targetTotal})`);
 }
 
 function getLargeSizeSet(grupo) {
