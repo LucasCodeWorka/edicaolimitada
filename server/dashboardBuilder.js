@@ -317,9 +317,14 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
   const familyRows = planoRows.filter(row => normalizeName(row.familia).toUpperCase() === familyKey);
   const positiveRows = familyRows.filter(row => Number(row.plano || 0) > 0);
 
-  if (positiveRows.length === 0) return;
+  if (positiveRows.length === 0) {
+    console.log(`[rebalanceFamilyToTarget] ${familyKey}: nenhum SKU com plano > 0`);
+    return;
+  }
 
   const currentTotal = positiveRows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+  console.log(`[rebalanceFamilyToTarget] ${familyKey}: ${currentTotal} -> ${targetTotal} (${positiveRows.length} SKUs)`);
+
   if (currentTotal <= 0 || currentTotal === targetTotal) return;
 
   if (targetTotal < positiveRows.length) {
