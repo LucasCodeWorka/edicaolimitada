@@ -75,10 +75,9 @@ export const REGRAS_ESPECIAIS = {
     obs: 'Base do 1o semestre 2026, sem crescimento'
   },
   'LOVE APPEAL': {
-    tipo: 'base_especial',
-    base: 1500,  // Ajustado conforme solicitacao
-    crescimento: 0,
-    obs: 'Plano ajustado para 1500 pecas'
+    tipo: 'fixo',
+    valor: 1500,
+    obs: 'Plano fixo em 1500 pecas'
   },
   'RENDAS': {
     tipo: 'base_especial',
