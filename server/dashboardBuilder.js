@@ -329,7 +329,7 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
 
   if (currentTotal <= 0 || currentTotal === targetTotal) return;
 
-  // Calcular valores proporcionais
+  // Calcular valores proporcionais SEM minimo de 1
   const projected = positiveRows.map((row) => {
     const planoAtual = Number(row.plano || 0);
     const raw = targetTotal * (planoAtual / currentTotal);
@@ -337,68 +337,35 @@ function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
       row,
       raw,
       planoOriginal: planoAtual,
-      base: Math.max(1, Math.floor(raw)),
+      base: Math.floor(raw),  // Sem Math.max(1, ...)
       frac: raw - Math.floor(raw)
     };
   });
 
-  // Ordenar por plano original (maior para menor) para manter hierarquia
-  projected.sort((a, b) => b.planoOriginal - a.planoOriginal);
+  // Ordenar por fracao decimal (maior para menor) para distribuir resto
+  const sortedByFrac = [...projected].sort((a, b) => b.frac - a.frac);
 
+  // Distribuir o resto (diferenca entre target e soma dos floors)
   let sum = projected.reduce((acc, item) => acc + item.base, 0);
   let diff = targetTotal - sum;
 
-  if (diff > 0) {
-    // Precisa adicionar - adiciona aos maiores primeiro
-    for (const item of projected) {
-      if (diff <= 0) break;
-      item.base += 1;
-      diff -= 1;
-    }
-  } else if (diff < 0) {
-    // Precisa reduzir - reduz dos maiores primeiro, mas mantendo ordem
-    // Itera enquanto precisar reduzir
-    while (diff < 0) {
-      let reduziu = false;
-      for (const item of projected) {
-        if (diff >= 0) break;
-        // So reduz se base > 1 e se nao vai ficar menor que o proximo
-        const idx = projected.indexOf(item);
-        const proximo = projected[idx + 1];
-        const minimoParaManter = proximo ? proximo.base : 1;
-
-        if (item.base > minimoParaManter) {
-          item.base -= 1;
-          diff += 1;
-          reduziu = true;
-        }
-      }
-      // Se nao conseguiu reduzir ninguem, para o loop
-      if (!reduziu) break;
-    }
+  // Adiciona 1 aos que tem maior fracao decimal
+  for (const item of sortedByFrac) {
+    if (diff <= 0) break;
+    item.base += 1;
+    diff -= 1;
   }
 
-  // Ajuste final se ainda houver diferenca
-  const finalDiff = targetTotal - projected.reduce((acc, item) => acc + item.base, 0);
-  if (finalDiff > 0) {
-    // Adiciona ao maior
-    projected[0].base += finalDiff;
-  } else if (finalDiff < 0) {
-    // Tenta reduzir do maior que pode
-    for (const item of projected) {
-      if (finalDiff >= 0) break;
-      const idx = projected.indexOf(item);
-      const proximo = projected[idx + 1];
-      const minimoParaManter = proximo ? proximo.base : 1;
-      const podeReduzir = item.base - minimoParaManter;
-      if (podeReduzir > 0) {
-        const reduzir = Math.min(podeReduzir, Math.abs(finalDiff));
-        item.base -= reduzir;
-      }
-    }
+  // Garantir que o total bate exatamente
+  const finalSum = projected.reduce((acc, item) => acc + item.base, 0);
+  const finalDiff = targetTotal - finalSum;
+  if (finalDiff !== 0 && projected.length > 0) {
+    // Ajusta no maior
+    const maior = projected.reduce((max, item) => item.base > max.base ? item : max, projected[0]);
+    maior.base += finalDiff;
   }
 
-  console.log(`[rebalanceFamilyToTarget] ${familyKey}: ajustado de ${currentTotal} para ${projected.reduce((s, i) => s + i.base, 0)} (target: ${targetTotal})`);
+  console.log(`[rebalanceFamilyToTarget] ${familyKey}: ${currentTotal} -> ${projected.reduce((s, i) => s + i.base, 0)} (target: ${targetTotal})`);
 
 
   projected.forEach(({ row, base }) => {
