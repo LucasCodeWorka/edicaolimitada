@@ -76,9 +76,9 @@ export const REGRAS_ESPECIAIS = {
   },
   'LOVE APPEAL': {
     tipo: 'base_especial',
-    base: 2776,  // Venda 1o sem 2026 (atualizado)
+    base: 1500,  // Ajustado conforme solicitacao
     crescimento: 0,
-    obs: 'Base do 1o semestre 2026, sem crescimento'
+    obs: 'Plano ajustado para 1500 pecas'
   },
   'RENDAS': {
     tipo: 'base_especial',
@@ -87,6 +87,68 @@ export const REGRAS_ESPECIAIS = {
     obs: 'Venda 2o sem 2025 (1158), sem crescimento'
   }
 };
+
+// Regras especiais por FAMILIA + GRUPO
+// Chave: 'FAMILIA|GRUPO' (grupo pode ser parcial, ex: CALCA, SUTIA)
+export const REGRAS_FAMILIA_GRUPO = {
+  'KISS ME|CALCA': {
+    tipo: 'fixo',
+    valor: 2700,
+    obs: 'Calcas KISS ME ajustadas para 2700 pecas'
+  },
+  'KISS ME|SUTIA': {
+    tipo: 'fixo',
+    valor: 1300,
+    obs: 'Sutias KISS ME ajustadas para 1300 pecas'
+  }
+};
+
+// Regras especiais por FAMILIA + REFERENCIA
+// Chave: 'FAMILIA|REFERENCIA'
+export const REGRAS_FAMILIA_REFERENCIA = {
+  'WISHES|501004': {
+    tipo: 'fixo',
+    valor: 1220,
+    obs: 'Ref 501004 WISHES ajustada para 1220 pecas'
+  },
+  'WISHES|501201': {
+    tipo: 'fixo',
+    valor: 780,
+    obs: 'Ref 501201 WISHES ajustada para 780 pecas'
+  }
+};
+
+// Funcao para buscar regra por familia + grupo
+export function getRegraFamiliaGrupo(familia, grupo) {
+  const familiaKey = String(familia || '').toUpperCase().trim();
+  const grupoKey = String(grupo || '').toUpperCase().trim();
+
+  // Tenta match exato primeiro
+  const keyExato = `${familiaKey}|${grupoKey}`;
+  if (REGRAS_FAMILIA_GRUPO[keyExato]) {
+    return REGRAS_FAMILIA_GRUPO[keyExato];
+  }
+
+  // Tenta match parcial (ex: grupo contem CALCA ou SUTIA)
+  for (const [key, regra] of Object.entries(REGRAS_FAMILIA_GRUPO)) {
+    const [fam, grp] = key.split('|');
+    if (familiaKey === fam && grupoKey.includes(grp)) {
+      return regra;
+    }
+  }
+
+  return null;
+}
+
+// Funcao para buscar regra por familia + referencia
+export function getRegraFamiliaReferencia(familia, referencia) {
+  const familiaKey = String(familia || '').toUpperCase().trim();
+  // Extrai apenas o codigo numerico da referencia (ex: "501004 - CALCINHA" -> "501004")
+  const refKey = String(referencia || '').toUpperCase().trim().split(/[\s\-]/)[0];
+
+  const key = `${familiaKey}|${refKey}`;
+  return REGRAS_FAMILIA_REFERENCIA[key] || null;
+}
 
 // Crescimento padrao
 export const CRESCIMENTO_PADRAO = 0; // sem crescimento

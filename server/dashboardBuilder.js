@@ -7,7 +7,9 @@ import {
   CRESCIMENTO_PADRAO,
   calcularPlanoFamilia,
   distribuirPlanoPorLoja,
-  getLinha
+  getLinha,
+  getRegraFamiliaGrupo,
+  getRegraFamiliaReferencia
 } from './planningRules.js';
 
 const fmtMonthPlan = [
@@ -186,6 +188,127 @@ function applySpecialFamilyColorTargets(planoRows) {
         row.vendaBase = Math.round(base * 100) / 100;
       });
     });
+  });
+}
+
+// Aplica regras especiais por FAMILIA+GRUPO e FAMILIA+REFERENCIA
+function applyFamiliaGrupoReferenciaRules(planoRows) {
+  // Agrupar SKUs por familia+grupo e familia+referencia
+  const skusPorFamiliaGrupo = new Map();
+  const skusPorFamiliaRef = new Map();
+
+  planoRows.forEach(row => {
+    const familia = normalizeName(row.familia).toUpperCase();
+    const grupo = normalizeName(row.grupo).toUpperCase();
+    const refCode = normalizeName(row.ref || '').toUpperCase().split(/[\s\-]/)[0];
+
+    // Agrupar por familia+grupo
+    const keyGrupo = `${familia}|${grupo}`;
+    if (!skusPorFamiliaGrupo.has(keyGrupo)) {
+      skusPorFamiliaGrupo.set(keyGrupo, []);
+    }
+    skusPorFamiliaGrupo.get(keyGrupo).push(row);
+
+    // Agrupar por familia+referencia
+    const keyRef = `${familia}|${refCode}`;
+    if (!skusPorFamiliaRef.has(keyRef)) {
+      skusPorFamiliaRef.set(keyRef, []);
+    }
+    skusPorFamiliaRef.get(keyRef).push(row);
+  });
+
+  // Aplicar regras por familia+referencia (mais especificas primeiro)
+  skusPorFamiliaRef.forEach((rows, key) => {
+    const [familia, refCode] = key.split('|');
+    const regra = getRegraFamiliaReferencia(familia, refCode);
+    if (!regra) return;
+
+    const totalAtual = rows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+    const targetTotal = regra.valor;
+
+    if (totalAtual === 0 || totalAtual === targetTotal) return;
+
+    console.log(`[dashboardBuilder] Aplicando regra ${familia}|${refCode}: ${totalAtual} -> ${targetTotal}`);
+
+    // Redistribuir proporcionalmente
+    const fator = targetTotal / totalAtual;
+    let soma = 0;
+    const valores = rows.map(row => {
+      const novoValor = Math.round(Number(row.plano || 0) * fator);
+      soma += novoValor;
+      return novoValor;
+    });
+
+    // Ajustar para bater o total
+    let diff = targetTotal - soma;
+    if (diff !== 0) {
+      // Encontrar o indice com maior valor para ajustar
+      const maxIdx = valores.reduce((max, val, idx) => val > valores[max] ? idx : max, 0);
+      valores[maxIdx] += diff;
+    }
+
+    rows.forEach((row, idx) => {
+      row.planoOriginal = row.plano;
+      row.plano = valores[idx];
+      row.regraAjuste = `REF_FIXO_${targetTotal}`;
+    });
+  });
+
+  // Aplicar regras por familia+grupo (match parcial)
+  const gruposProcessados = new Set();
+  skusPorFamiliaGrupo.forEach((rows, key) => {
+    const [familia, grupo] = key.split('|');
+    const regra = getRegraFamiliaGrupo(familia, grupo);
+    if (!regra) return;
+
+    // Evitar processar o mesmo grupo parcial duas vezes
+    const regraKey = `${familia}|${regra.obs}`;
+    if (gruposProcessados.has(regraKey)) return;
+
+    // Encontrar todos os SKUs que fazem match com essa regra
+    const allMatchingRows = [];
+    skusPorFamiliaGrupo.forEach((groupRows, groupKey) => {
+      const [fam, grp] = groupKey.split('|');
+      if (fam === familia && getRegraFamiliaGrupo(fam, grp) === regra) {
+        allMatchingRows.push(...groupRows);
+      }
+    });
+
+    if (allMatchingRows.length === 0) return;
+
+    const totalAtual = allMatchingRows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+    const targetTotal = regra.valor;
+
+    if (totalAtual === 0 || totalAtual === targetTotal) {
+      gruposProcessados.add(regraKey);
+      return;
+    }
+
+    console.log(`[dashboardBuilder] Aplicando regra ${familia}+${grupo}: ${totalAtual} -> ${targetTotal}`);
+
+    // Redistribuir proporcionalmente
+    const fator = targetTotal / totalAtual;
+    let soma = 0;
+    const valores = allMatchingRows.map(row => {
+      const novoValor = Math.round(Number(row.plano || 0) * fator);
+      soma += novoValor;
+      return novoValor;
+    });
+
+    // Ajustar para bater o total
+    let diff = targetTotal - soma;
+    if (diff !== 0) {
+      const maxIdx = valores.reduce((max, val, idx) => val > valores[max] ? idx : max, 0);
+      valores[maxIdx] += diff;
+    }
+
+    allMatchingRows.forEach((row, idx) => {
+      row.planoOriginal = row.plano;
+      row.plano = valores[idx];
+      row.regraAjuste = `GRUPO_FIXO_${targetTotal}`;
+    });
+
+    gruposProcessados.add(regraKey);
   });
 }
 
@@ -2030,6 +2153,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
 
   rebalanceRegularReferenceLargeSizes(planoRows);
   applySpecialFamilyColorTargets(planoRows);
+  applyFamiliaGrupoReferenciaRules(planoRows);
 
   const planoPorLojaCalculado = buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaFallback);
   familiasDashboard.forEach((familia) => {
