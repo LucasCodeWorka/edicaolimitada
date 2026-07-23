@@ -19,7 +19,7 @@ const fmtMonthPlan = [
   { mes: 'OUTUBRO', peso: 0.20 }
 ];
 
-const SPECIAL_INVERNO26_FAMILIES = new Set(['NOIVAS', 'LOVE APPEAL']);
+const SPECIAL_INVERNO26_FAMILIES = new Set(['NOIVAS']); // LOVE APPEAL removido - usa REGRAS_ESPECIAIS com base 1500
 const SPECIAL_INVERNO26_CURVE_FAMILIES = new Set(['RENDAS']);
 const SPECIAL_2026_BASE_FAMILIES = new Set(['CETIM', 'BREEZE']);
 const SPECIAL_MONTH_DEPARA = {
