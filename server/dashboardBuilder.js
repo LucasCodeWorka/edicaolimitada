@@ -312,6 +312,70 @@ function applyFamiliaGrupoReferenciaRules(planoRows) {
   });
 }
 
+function rebalanceFamilyToTarget(planoRows, familia, targetTotal) {
+  const familyKey = normalizeName(familia).toUpperCase();
+  const familyRows = planoRows.filter(row => normalizeName(row.familia).toUpperCase() === familyKey);
+  const positiveRows = familyRows.filter(row => Number(row.plano || 0) > 0);
+
+  if (positiveRows.length === 0) return;
+
+  const currentTotal = positiveRows.reduce((sum, row) => sum + Number(row.plano || 0), 0);
+  if (currentTotal <= 0 || currentTotal === targetTotal) return;
+
+  if (targetTotal < positiveRows.length) {
+    console.warn(`[dashboardBuilder] Nao foi possivel rebalancear ${familyKey} para ${targetTotal} sem zerar SKUs.`);
+    return;
+  }
+
+  const projected = positiveRows.map((row) => {
+    const raw = targetTotal * (Number(row.plano || 0) / currentTotal);
+    return {
+      row,
+      raw,
+      base: Math.max(1, Math.floor(raw)),
+      frac: raw - Math.floor(raw)
+    };
+  });
+
+  let sum = projected.reduce((acc, item) => acc + item.base, 0);
+  let diff = targetTotal - sum;
+
+  if (diff > 0) {
+    projected
+      .slice()
+      .sort((a, b) => b.frac - a.frac || Number(b.row.plano || 0) - Number(a.row.plano || 0))
+      .forEach((item) => {
+        if (diff <= 0) return;
+        item.base += 1;
+        diff -= 1;
+      });
+  } else if (diff < 0) {
+    projected
+      .slice()
+      .sort((a, b) => Number(b.base) - Number(a.base) || Number(b.row.plano || 0) - Number(a.row.plano || 0))
+      .forEach((item) => {
+        if (diff >= 0) return;
+        if (item.base <= 1) return;
+        item.base -= 1;
+        diff += 1;
+      });
+  }
+
+  const finalDiff = targetTotal - projected.reduce((acc, item) => acc + item.base, 0);
+  if (finalDiff !== 0) {
+    const ajuste = projected
+      .slice()
+      .sort((a, b) => Number(b.base) - Number(a.base) || Number(b.raw) - Number(a.raw))[0];
+    if (ajuste) ajuste.base += finalDiff;
+  }
+
+  projected.forEach(({ row, base }) => {
+    row.planoOriginal = row.planoOriginal ?? row.plano;
+    row.plano = base;
+    row.regraAjuste = `FAMILY_TARGET_${targetTotal}`;
+  });
+}
+
 function getLargeSizeSet(grupo) {
   const grupoKey = normalizeName(grupo).toUpperCase();
   if (grupoKey.includes('SUTIA')) return new Set(['48', '50']);
@@ -2154,6 +2218,7 @@ export function buildDashboardFromSales(rows, { grupoSubgrupoMap = {}, specialBa
   rebalanceRegularReferenceLargeSizes(planoRows);
   applySpecialFamilyColorTargets(planoRows);
   applyFamiliaGrupoReferenciaRules(planoRows);
+  rebalanceFamilyToTarget(planoRows, 'LOVE APPEAL', 1500);
 
   const planoPorLojaCalculado = buildStoreDistributionFromPlanRows(planoRows, lojasArray, planoPorLojaFallback);
   familiasDashboard.forEach((familia) => {

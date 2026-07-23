@@ -864,10 +864,6 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
         distribuicao[loja] = 1;
       }
 
-      if (loveAppealSku && loveAppealAllowedSku && distribuicao[loja] < 2) {
-        distribuicao[loja] = 2;
-      }
-
       if (
         isSkuTamMaiorMinimo &&
         (aplicaRegraTamMaiorLimitada || isKissMeTamMaiorExcecao) &&
@@ -881,6 +877,28 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
 
       row[loja] = distribuicao[loja];
     });
+
+    if (loveAppealSku && loveAppealAllowedSku) {
+      const totalLoveAppeal = lojasPCP.reduce((sum, loja) => sum + Number(distribuicao[loja] || 0), 0);
+      if (planoTotal > 0 && totalLoveAppeal < 2) {
+        const lojasElegiveis = lojasPCP.filter(loja => !(
+          (aplicaRegraTamMaiorLimitada && lojaExcluidaTamanhoMaior(loja)) ||
+          (isKissMeTamMaiorExcecao && normalizeKey(loja) !== 'MARAPONGA') ||
+          (ehPortelle(sku) && lojaSemPortelle(loja)) ||
+          (ehPortelleNaoPreto(sku) && lojaPequenaPortelle(loja))
+        ));
+
+        const lojaDestino = lojasElegiveis.sort((a, b) => (
+          Number(participacaoAjustada[b] || 0) - Number(participacaoAjustada[a] || 0) ||
+          Number(distribuicao[b] || 0) - Number(distribuicao[a] || 0)
+        ))[0];
+
+        if (lojaDestino) {
+          distribuicao[lojaDestino] += 2 - totalLoveAppeal;
+          row[lojaDestino] = distribuicao[lojaDestino];
+        }
+      }
+    }
 
     row['Plano Total'] = lojasPCP.reduce((sum, loja) => sum + Number(row[loja] || 0), 0);
 
