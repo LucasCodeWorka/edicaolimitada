@@ -825,12 +825,33 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     });
 
     const somaArredondada = Object.values(distribuicao).reduce((s, v) => s + v, 0);
-    let falta = planoTotal - somaArredondada;
+    let ajuste = planoTotal - somaArredondada;
 
-    if (falta > 0) {
-      restos.sort((a, b) => b.resto - a.resto);
-      for (let i = 0; i < falta && i < restos.length; i++) {
-        distribuicao[restos[i].loja] += 1;
+    if (ajuste !== 0 && restos.length > 0) {
+      const ordemAjuste = [...restos].sort((a, b) => (
+        ajuste > 0
+          ? b.resto - a.resto || a.loja.localeCompare(b.loja)
+          : a.resto - b.resto || a.loja.localeCompare(b.loja)
+      ));
+
+      let cursor = 0;
+      let tentativas = 0;
+      const limite = ordemAjuste.length * (Math.abs(ajuste) + 1);
+
+      while (ajuste !== 0 && tentativas < limite) {
+        const item = ordemAjuste[cursor % ordemAjuste.length];
+        const valorAtual = Number(distribuicao[item.loja] || 0);
+
+        if (ajuste > 0) {
+          distribuicao[item.loja] = valorAtual + 1;
+          ajuste -= 1;
+        } else if (valorAtual > 0) {
+          distribuicao[item.loja] = valorAtual - 1;
+          ajuste += 1;
+        }
+
+        cursor += 1;
+        tentativas += 1;
       }
     }
 
