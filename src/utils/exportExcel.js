@@ -689,6 +689,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     const grupo = String(sku.grupo || '').toUpperCase().trim();
     const subgrupo = String(sku.subgrupo || '').toUpperCase().trim();
     const planoOriginalSku = Number(sku.planoOriginal ?? sku.plano ?? 0);
+    const planoTotalSku = Number(sku.plano ?? sku.planoOriginal ?? 0);
     const sourceOverride = getSpecialReferenceSourceOverride(sku);
 
     const row = {
@@ -699,7 +700,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
       'Grupo': sku.grupo || '-',
       'Subgrupo': sku.subgrupo || '-',
       'Plano Original': planoOriginalSku,
-      'Plano Total': planoOriginalSku,
+      'Plano Total': planoTotalSku,
     };
 
     // Prioridade de busca:
@@ -797,7 +798,7 @@ export const buildComparativoDetalhadoRows = (planoData, comparativoData) => {
     }
 
     // Distribuir usando algoritmo "largest remainder"
-    const planoTotal = planoOriginalSku;
+    const planoTotal = planoTotalSku;
     const distribuicao = {};
     const restos = [];
     const topSizesKey = `${normalizeKey(sku.familia)}|${normalizeKey(sku.ref)}`;
